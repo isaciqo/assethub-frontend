@@ -1,0 +1,252 @@
+@import '@fontsource-variable/bricolage-grotesque';
+@import '@fontsource-variable/plus-jakarta-sans';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+  ╔══════════════════════════════════════════════════════════════╗
+  ║  Patrimônio Ágil — Design System "Barro & Grafismo"          ║
+  ║                                                              ║
+  ║  Inspirado na cerâmica marajoara (Ilha do Marajó) e          ║
+  ║  tapajônica (Santarém): engobo de caulim, pintura em         ║
+  ║  vermelho de argila e urucum, traço escuro de jenipapo,      ║
+  ║  frisos escalonados e espirais quadradas.                    ║
+  ║                                                              ║
+  ║  argila   #9C3D22  hsl(13 64% 37%)   primária                ║
+  ║  urucum   #CF4E26  hsl(14 70% 48%)   destaque/ação           ║
+  ║  caulim   #F8F2E8  hsl(38 52% 95%)   fundo                   ║
+  ║  jenipapo #1E2130  hsl(228 22% 15%)  texto/sidebar           ║
+  ║  ocre     #C99A3B  hsl(40 56% 51%)   atenção                 ║
+  ║  mata     #4C7343  hsl(110 26% 36%)  sucesso                 ║
+  ║  igarapé  #2F6370  hsl(192 41% 31%)  informação              ║
+  ║  açaí     #5E2E4F  hsl(318 34% 27%)  especial                ║
+  ╚══════════════════════════════════════════════════════════════╝
+*/
+
+@layer base {
+  :root {
+    --background: 38 52% 95%;
+    --foreground: 228 22% 15%;
+
+    --card: 40 60% 98.5%;
+    --card-foreground: 228 22% 15%;
+    --popover: 40 60% 98.5%;
+    --popover-foreground: 228 22% 15%;
+
+    --primary: 13 64% 37%;
+    --primary-foreground: 38 52% 96%;
+
+    --secondary: 28 45% 89%;
+    --secondary-foreground: 13 60% 28%;
+
+    --muted: 34 36% 90%;
+    --muted-foreground: 24 14% 38%;
+
+    --accent: 32 45% 88%;
+    --accent-foreground: 13 60% 28%;
+
+    --destructive: 4 64% 44%;
+    --destructive-foreground: 38 52% 96%;
+
+    --urucum: 14 70% 48%;
+    --ochre: 40 56% 51%;
+    --success: 110 26% 36%;
+    --success-foreground: 38 52% 96%;
+    --warning: 38 75% 44%;
+    --warning-foreground: 228 22% 12%;
+    --info: 192 41% 31%;
+    --info-foreground: 38 52% 96%;
+    --acai: 318 34% 27%;
+
+    --border: 32 30% 82%;
+    --input: 32 30% 78%;
+    --ring: 14 70% 48%;
+
+    --radius: 0.9rem;
+
+    --sidebar-background: 228 24% 12%;
+    --sidebar-foreground: 36 30% 84%;
+    --sidebar-primary: 14 72% 58%;
+    --sidebar-accent: 228 20% 18%;
+    --sidebar-border: 228 18% 20%;
+
+    --shadow-card: 0 1px 2px hsl(13 40% 20% / 0.06), 0 2px 8px -2px hsl(13 40% 20% / 0.08);
+    --shadow-elevated: 0 10px 30px -10px hsl(13 50% 20% / 0.25), 0 4px 10px -4px hsl(13 40% 20% / 0.1);
+
+    /* Traço dos grafismos — muda no modo escuro */
+    --motif: 13 64% 37%;
+  }
+
+  .dark {
+    --background: 228 20% 9%;
+    --foreground: 38 40% 90%;
+    --card: 228 18% 12.5%;
+    --card-foreground: 38 40% 90%;
+    --popover: 228 18% 12.5%;
+    --popover-foreground: 38 40% 90%;
+
+    --primary: 14 66% 56%;
+    --primary-foreground: 228 24% 10%;
+
+    --secondary: 228 14% 19%;
+    --secondary-foreground: 32 50% 82%;
+
+    --muted: 228 14% 16%;
+    --muted-foreground: 32 14% 64%;
+
+    --accent: 228 14% 19%;
+    --accent-foreground: 32 50% 85%;
+
+    --destructive: 4 70% 56%;
+    --destructive-foreground: 228 24% 10%;
+
+    --urucum: 14 78% 60%;
+    --ochre: 40 66% 60%;
+    --success: 110 30% 52%;
+    --success-foreground: 228 24% 10%;
+    --warning: 38 80% 58%;
+    --info: 192 40% 52%;
+    --info-foreground: 228 24% 10%;
+    --acai: 318 30% 60%;
+
+    --border: 228 14% 22%;
+    --input: 228 14% 26%;
+    --ring: 14 78% 60%;
+
+    --sidebar-background: 228 24% 7%;
+    --sidebar-accent: 228 20% 13%;
+    --sidebar-border: 228 18% 15%;
+
+    --shadow-card: 0 1px 2px hsl(0 0% 0% / 0.3);
+    --shadow-elevated: 0 10px 30px -10px hsl(0 0% 0% / 0.6);
+
+    --motif: 14 66% 56%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-feature-settings: "ss01", "cv11";
+  }
+
+  h1, h2, h3, .font-display {
+    font-family: 'Bricolage Grotesque Variable', 'Plus Jakarta Sans Variable', system-ui, sans-serif;
+    letter-spacing: -0.02em;
+  }
+
+  /* Alvos de toque confortáveis em campo (luva, pressa, tela suada). */
+  button, [role="button"], a {
+    touch-action: manipulation;
+  }
+
+  :focus-visible {
+    outline: 3px solid hsl(var(--ring));
+    outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  }
+}
+
+@layer components {
+  /* Friso escalonado ("grega") — faixa de borda como nas bordas das urnas. */
+  .motif-band {
+    height: 14px;
+    background-color: hsl(var(--primary));
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='14' viewBox='0 0 28 14'%3E%3Cpath d='M0 14V0h28v14h-4V4h-6v6h-4V4H8v6H4V4H0z' fill='%23000'/%3E%3C/svg%3E") repeat-x left center / 28px 14px;
+            mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='14' viewBox='0 0 28 14'%3E%3Cpath d='M0 14V0h28v14h-4V4h-6v6h-4V4H8v6H4V4H0z' fill='%23000'/%3E%3C/svg%3E") repeat-x left center / 28px 14px;
+  }
+
+  /* Linha em degraus fina — separador de seções. */
+  .motif-steps {
+    height: 8px;
+    background-color: hsl(var(--motif) / 0.55);
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='8' viewBox='0 0 16 8'%3E%3Cpath d='M0 7h4V4h4V1h4v3h4v3' fill='none' stroke='%23000' stroke-width='1.6'/%3E%3C/svg%3E") repeat-x left center / 16px 8px;
+            mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='8' viewBox='0 0 16 8'%3E%3Cpath d='M0 7h4V4h4V1h4v3h4v3' fill='none' stroke='%23000' stroke-width='1.6'/%3E%3C/svg%3E") repeat-x left center / 16px 8px;
+  }
+
+  /* Campo de espirais quadradas em baixíssimo contraste — textura de fundo. */
+  .motif-field {
+    position: relative;
+    isolation: isolate;
+  }
+  .motif-field::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background-color: hsl(var(--motif) / var(--motif-opacity, 0.07));
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='%23000' stroke-width='2.2'%3E%3Cpath d='M4 28V4h24v20H10V10h12v8h-6'/%3E%3Cpath d='M60 36v24H36V40h18V54H42v-8h6'/%3E%3Cpath d='M36 4l12 12L36 28M28 36L16 48l12 12'/%3E%3C/g%3E%3C/svg%3E") repeat / 64px 64px;
+            mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='%23000' stroke-width='2.2'%3E%3Cpath d='M4 28V4h24v20H10V10h12v8h-6'/%3E%3Cpath d='M60 36v24H36V40h18V54H42v-8h6'/%3E%3Cpath d='M36 4l12 12L36 28M28 36L16 48l12 12'/%3E%3C/g%3E%3C/svg%3E") repeat / 64px 64px;
+  }
+
+  .card-clay {
+    @apply rounded-2xl border bg-card text-card-foreground;
+    box-shadow: var(--shadow-card);
+  }
+
+  /* Cantoneiras em degrau nos cartões de destaque. */
+  .corner-steps {
+    position: relative;
+  }
+  .corner-steps::after {
+    content: '';
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 22px;
+    height: 22px;
+    background-color: hsl(var(--motif) / 0.35);
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 22 22'%3E%3Cpath d='M0 2h20v20h-2V4H0z M6 8h8v8h-2v-6H6z' fill='%23000'/%3E%3C/svg%3E") no-repeat center / contain;
+            mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 22 22'%3E%3Cpath d='M0 2h20v20h-2V4H0z M6 8h8v8h-2v-6H6z' fill='%23000'/%3E%3C/svg%3E") no-repeat center / contain;
+  }
+
+  .scan-frame {
+    background:
+      linear-gradient(hsl(var(--urucum)) 0 0) top left / 28px 4px,
+      linear-gradient(hsl(var(--urucum)) 0 0) top left / 4px 28px,
+      linear-gradient(hsl(var(--urucum)) 0 0) top right / 28px 4px,
+      linear-gradient(hsl(var(--urucum)) 0 0) top right / 4px 28px,
+      linear-gradient(hsl(var(--urucum)) 0 0) bottom left / 28px 4px,
+      linear-gradient(hsl(var(--urucum)) 0 0) bottom left / 4px 28px,
+      linear-gradient(hsl(var(--urucum)) 0 0) bottom right / 28px 4px,
+      linear-gradient(hsl(var(--urucum)) 0 0) bottom right / 4px 28px;
+    background-repeat: no-repeat;
+  }
+}
+
+@layer utilities {
+  .shadow-card { box-shadow: var(--shadow-card); }
+  .shadow-elevated { box-shadow: var(--shadow-elevated); }
+  .pb-safe { padding-bottom: max(env(safe-area-inset-bottom), 0px); }
+  .tabular { font-variant-numeric: tabular-nums; }
+}
+
+@keyframes scan-line {
+  0%, 100% { transform: translateY(0); opacity: 0.2; }
+  50% { transform: translateY(170px); opacity: 1; }
+}
+
+@keyframes pop-in {
+  0% { transform: scale(0.85); opacity: 0; }
+  60% { transform: scale(1.04); opacity: 1; }
+  100% { transform: scale(1); }
+}
+
+@media print {
+  .no-print { display: none !important; }
+  body { background: white; }
+}
