@@ -21,6 +21,7 @@ export const metaService = {
 export const unitsService = {
   list: () => http.get<Unit[]>('/units'),
   create: (data: { name: string; code: string; city?: string; region?: string }) => http.post<Unit>('/units', data),
+  setLocation: (id: string, geo: { lat: number; lng: number; accuracy: number | null }) => http.patch<Unit>(`/units/${id}/location`, geo),
 };
 
 export const usersService = {

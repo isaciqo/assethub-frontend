@@ -23,6 +23,15 @@ export interface ApiError {
 
 export interface AuthTokens { accessToken: string; refreshToken?: string }
 
+// Onde o aparelho estava na ação; distância só quando a unidade tem ponto fixado.
+export interface GeoRecord {
+  lat: number;
+  lng: number;
+  accuracy: number | null;
+  distanceM: number | null;
+  outsideUnit: boolean;
+}
+
 export interface Unit {
   id: string;
   name: string;
@@ -30,6 +39,7 @@ export interface Unit {
   city: string;
   region: 'capital' | 'interior';
   locations: string[];
+  geo: { lat: number; lng: number } | null;
   assetCount?: number;
 }
 
@@ -97,6 +107,7 @@ export interface InventoryCheck {
   checkedByName: string;
   checkedAt: string;
   wasOffline: boolean;
+  geo: GeoRecord | null;
 }
 
 export interface AssetDetail {
@@ -203,6 +214,7 @@ export interface Handover {
   photoEvidenceIds: string[];
   hasIssue: boolean;
   issueDescription: string;
+  geo: GeoRecord | null;
 }
 
 export interface Movement {

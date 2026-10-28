@@ -24,6 +24,10 @@ npm run build && npm run preview   # para testar o service worker/offline
 
 No Docker, o nginx serve o build e faz proxy de `/api` para a API (mesma origem).
 
+**Vercel:** o `vercel.json` já configura build, rotas da SPA e cabeçalhos (câmera e GPS liberados).
+Defina `VITE_API_BASE_URL=https://SEU-APP.onrender.com/api/v1` nas variáveis do projeto.
+Passo a passo completo (Atlas + Render + Vercel) em `assethub-backend/DEPLOY.md`.
+
 ## Como o offline funciona
 
 1. *Preparar* baixa o pacote do inventário (`GET /inventories/:id/snapshot`) para o IndexedDB e pede

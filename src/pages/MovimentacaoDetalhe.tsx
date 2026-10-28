@@ -9,7 +9,8 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { ConservationBadge, EmptyState, EvidenceImage, Field, MovementStatusBadge, PageHeader, Spinner } from '@/components/common';
+import { ConservationBadge, EmptyState, EvidenceImage, Field, GeoTag, MovementStatusBadge, PageHeader, Spinner } from '@/components/common';
+import { getPosition, type GeoFix } from '@/lib/geo';
 import { SignaturePad } from '@/components/SignaturePad';
 import { PhotoPicker } from '@/components/PhotoPicker';
 import { useMovement } from '@/hooks/queries';
@@ -160,8 +161,8 @@ const MovimentacaoDetalhe: React.FC = () => {
                   </dd>
                 </div>
               ))}
-              <div><dt className="text-xs text-muted-foreground">Envio</dt><dd className="font-semibold">{uName(m.delivererId)}{m.delivery && <span className="block text-xs font-normal text-muted-foreground">{fmtDateTime(m.delivery.at)}</span>}</dd></div>
-              <div><dt className="text-xs text-muted-foreground">Recebimento</dt><dd className="font-semibold">{uName(m.receiverId)}{m.receipt && <span className="block text-xs font-normal text-muted-foreground">{fmtDateTime(m.receipt.at)}</span>}</dd></div>
+              <div><dt className="text-xs text-muted-foreground">Envio</dt><dd className="font-semibold">{uName(m.delivererId)}{m.delivery && <><span className="block text-xs font-normal text-muted-foreground">{fmtDateTime(m.delivery.at)}</span><GeoTag geo={m.delivery.geo} /></>}</dd></div>
+              <div><dt className="text-xs text-muted-foreground">Recebimento</dt><dd className="font-semibold">{uName(m.receiverId)}{m.receipt && <><span className="block text-xs font-normal text-muted-foreground">{fmtDateTime(m.receipt.at)}</span><GeoTag geo={m.receipt.geo} /></>}</dd></div>
             </dl>
             {m.receipt?.hasIssue && <div className="mt-3 rounded-xl bg-destructive/10 p-3 text-xs text-destructive font-semibold">Ocorrência: {m.receipt.issueDescription}</div>}
           </section>
@@ -243,16 +244,20 @@ export const HandoverDialog: React.FC<{ data: MovementDetail; stage: 'entrega' |
   const [photos, setPhotos] = useState<string[]>([]);
   const [hasIssue, setHasIssue] = useState(false);
   const [issue, setIssue] = useState('');
+  const [geo, setGeo] = useState<GeoFix | null | undefined>(undefined);
 
   useEffect(() => {
     if (!stage) return;
     setConditions(initial()); setSignature(null); setNotes(''); setPhotos([]); setHasIssue(false); setIssue('');
+    // Pega a posição enquanto a pessoa confere e assina — não atrasa o envio.
+    setGeo(undefined);
+    getPosition(10_000).then(setGeo);
   }, [stage]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const opts = useMovementMutation(m.id, onClose);
   const body = () => ({
     conditions: Object.entries(conditions).map(([asset_id, condition]) => ({ asset_id, condition })),
-    signature, signer_name: signer, notes, photos,
+    signature, signer_name: signer, notes, photos, geo: geo || undefined,
     ...(stage === 'recebimento' ? { has_issue: hasIssue, issue_description: issue } : {}),
   });
   const mut = useMutation(opts(
@@ -297,6 +302,9 @@ export const HandoverDialog: React.FC<{ data: MovementDetail; stage: 'entrega' |
           <Field label="Observações"><Textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2} /></Field>
           <Field label="Nome de quem assina"><Input value={signer} onChange={e => setSigner(e.target.value)} /></Field>
           <SignaturePad onChange={setSignature} />
+          <p className="text-[11px] text-muted-foreground">
+            {geo === undefined ? 'Obtendo localização…' : geo ? `Localização registrada (±${geo.accuracy ?? '?'} m)` : 'Sem localização — o GPS foi negado ou não respondeu. Dá para confirmar assim mesmo.'}
+          </p>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Voltar</Button>

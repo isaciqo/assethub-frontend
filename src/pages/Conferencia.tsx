@@ -21,6 +21,7 @@ import { deviceId, feedback, uuid } from '@/lib/device';
 import { normalizeCode, normalizeText, fmtDateTime } from '@/lib/format';
 import { CHECK_METHOD, CHECK_STATUS, CONSERVATION, CONSERVATION_ORDER } from '@/lib/labels';
 import { cn } from '@/lib/utils';
+import { useGeoWatch } from '@/lib/geo';
 import { toast } from '@/components/ui/sonner';
 import type { CheckMethod, Conservation, SnapshotAsset } from '@/types';
 
@@ -66,6 +67,7 @@ const Conferencia: React.FC = () => {
   const [query, setQuery] = useState('');
   const [preparing, setPreparing] = useState(false);
   const lastAt = useRef(Date.now());
+  const gps = useGeoWatch();
 
   useEffect(() => { localStorage.setItem('assethub_scan_mode', mode); }, [mode]);
   useEffect(() => { localStorage.setItem(`assethub_room_${inventoryId}`, room); lastAt.current = Date.now(); }, [room, inventoryId]);
@@ -141,6 +143,7 @@ const Conferencia: React.FC = () => {
       checked_at: new Date().toISOString(),
       device_id: deviceId(),
       was_offline: !navigator.onLine,
+      geo: gps.latest.current,
       status: 'PENDING',
       local_status,
       asset_description: d.asset?.description || d.description || 'Bem não previsto',
@@ -151,7 +154,7 @@ const Conferencia: React.FC = () => {
       synced_at: null,
     });
     feedback(local_status === 'ok' ? 'ok' : local_status === 'divergente' ? 'warn' : 'error');
-  }, [addOp, inventoryId, reload]);
+  }, [addOp, inventoryId, reload, gps.latest]);
 
   const draftFor = (asset: SnapshotAsset | null, code: string, method: CheckMethod): Draft => ({
     asset, code, method,
@@ -259,7 +262,12 @@ const Conferencia: React.FC = () => {
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="icon" asChild><Link to="/conferir" aria-label="Voltar"><ArrowLeft /></Link></Button>
         <div className="min-w-0 flex-1">
-          <div className="text-[11px] font-bold text-urucum">{snapshot.inventory.number} · {snapshot.unit.code}</div>
+          <div className="text-[11px] font-bold text-urucum">
+            {snapshot.inventory.number} · {snapshot.unit.code}
+            <span className={cn('ml-2 font-semibold', gps.fix ? 'text-success' : 'text-muted-foreground')}>
+              {gps.fix ? `GPS ±${gps.fix.accuracy ?? '?'} m` : gps.denied ? 'GPS negado' : 'GPS buscando…'}
+            </span>
+          </div>
           <h1 className="font-display text-xl font-bold leading-tight truncate">{snapshot.inventory.name}</h1>
         </div>
         <VaseProgress value={pct} size={62} />

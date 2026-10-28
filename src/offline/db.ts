@@ -1,5 +1,6 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
 import type { CheckMethod, CheckStatus, Conservation, InventorySnapshot } from '@/types';
+import type { GeoFix } from '@/lib/geo';
 
 // Tudo que a conferência precisa para funcionar sem internet mora aqui — e não
 // em useState: recarregar a página, fechar o app ou o aparelho dormir não
@@ -28,6 +29,7 @@ export interface PendingOp {
   checked_at: string;
   device_id: string;
   was_offline: boolean;
+  geo?: GeoFix | null;
   // Campos só do aparelho (não vão para a API):
   status: OpStatus;
   local_status: LocalStatus;

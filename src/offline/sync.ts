@@ -79,6 +79,7 @@ function toPayload(op: PendingOp) {
     checked_at: op.checked_at,
     device_id: op.device_id,
     was_offline: op.was_offline,
+    geo: op.geo || undefined,
   };
 }
 

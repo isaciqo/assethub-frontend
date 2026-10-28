@@ -1,17 +1,18 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { CheckCheck, Download, FileText, Loader2, Lock, ScanLine, Sheet as SheetIcon, Smartphone, TriangleAlert, Users } from 'lucide-react';
+import { CheckCheck, Download, FileText, Loader2, Lock, MapPin, ScanLine, Sheet as SheetIcon, Smartphone, TriangleAlert, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
   AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { BarList, CheckStatusBadge, EmptyState, PageHeader, Spinner, StatTile } from '@/components/common';
+import { BarList, CheckStatusBadge, EmptyState, GeoTag, PageHeader, Spinner, StatTile } from '@/components/common';
 import { VaseProgress } from '@/components/brand/Brand';
 import { useInventory } from '@/hooks/queries';
-import { inventoriesService } from '@/services/api';
+import { inventoriesService, unitsService } from '@/services/api';
+import { getPosition } from '@/lib/geo';
 import { downloadFile, openFile } from '@/services/http';
 import { prepareOffline, useOfflineInventory } from '@/offline/hooks';
 import { useAuth } from '@/lib/auth-context';
@@ -35,6 +36,21 @@ const InventarioDetalhe: React.FC = () => {
     onSuccess: r => {
       qc.invalidateQueries();
       toast.success(`Inventário encerrado — ${r.summary?.notFound ?? 0} bem(ns) não localizado(s) viraram pendência`);
+    },
+    onError: (e: ApiError) => toast.error(e.message),
+  });
+
+  // O gerente, no prédio, fixa a posição atual como o ponto da unidade.
+  const pinUnit = useMutation({
+    mutationFn: async () => {
+      const geo = await getPosition(15_000);
+      if (!geo) throw { message: 'Não foi possível obter a localização. Libere o GPS para este site e tente de novo.' };
+      return unitsService.setLocation(inv!.unit.id, geo);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['inventory', id] });
+      qc.invalidateQueries({ queryKey: ['units'] });
+      toast.success('Ponto da unidade fixado aqui. As próximas ações vão mostrar se foram feitas na unidade.');
     },
     onError: (e: ApiError) => toast.error(e.message),
   });
@@ -73,6 +89,11 @@ const InventarioDetalhe: React.FC = () => {
               </Button>
             )}
             <Button variant="outline" asChild><Link to={`/pendencias?inventario=${inv.id}`}><TriangleAlert /> Pendências ({s.openDiscrepancies})</Link></Button>
+            {can('admin', 'gestor') && (
+              <Button variant="outline" onClick={() => pinUnit.mutate()} disabled={pinUnit.isPending} title="Use estando no prédio da unidade">
+                {pinUnit.isPending ? <Loader2 className="animate-spin" /> : <MapPin />} {inv.unit.geo ? 'Refixar ponto da unidade' : 'Fixar ponto da unidade aqui'}
+              </Button>
+            )}
           </>
         }
       />
@@ -146,6 +167,7 @@ const InventarioDetalhe: React.FC = () => {
                   <div className="min-w-0 flex-1">
                     <div className="truncate">{c.assetDescription || '—'}</div>
                     <div className="text-xs text-muted-foreground">{c.checkedByName} · {fmtDateTime(c.checkedAt)} · {CHECK_METHOD[c.method]}{c.wasOffline ? ' · offline' : ''}</div>
+                    <GeoTag geo={c.geo} />
                   </div>
                   <CheckStatusBadge value={c.status} />
                 </li>

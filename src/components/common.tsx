@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { Loader2 } from 'lucide-react';
+import { Loader2, MapPin, MapPinOff } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { http } from '@/services/http';
 import { ASSET_STATUS, CHECK_STATUS, CONSERVATION, DISCREPANCY, MOVEMENT_STATUS } from '@/lib/labels';
-import type { AssetStatus, CheckStatus, Conservation, DiscrepancyType, MovementStatus } from '@/types';
+import type { AssetStatus, CheckStatus, Conservation, DiscrepancyType, GeoRecord, MovementStatus } from '@/types';
+import { mapsUrl } from '@/lib/geo';
 import { MotifDivider } from './brand/Brand';
 
 export const PageHeader: React.FC<{ title: string; subtitle?: React.ReactNode; actions?: React.ReactNode; eyebrow?: string }> = ({ title, subtitle, actions, eyebrow }) => (
@@ -118,3 +119,19 @@ export const NativeSelect: React.FC<React.SelectHTMLAttributes<HTMLSelectElement
     {children}
   </select>
 );
+
+const fmtDistance = (m: number) => (m >= 1000 ? `${(m / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} km` : `${m} m`);
+
+// Onde a ação foi feita. Vermelho quando ficou longe do ponto da unidade.
+export const GeoTag: React.FC<{ geo: GeoRecord | null | undefined; className?: string }> = ({ geo, className }) => {
+  if (!geo) return <span className={cn('inline-flex items-center gap-1 text-[11px] text-muted-foreground', className)}><MapPinOff className="h-3 w-3" /> sem localização</span>;
+  const label = geo.outsideUnit
+    ? `Fora da unidade · ${fmtDistance(geo.distanceM ?? 0)}`
+    : geo.distanceM != null ? `Na unidade · ${fmtDistance(geo.distanceM)}` : `Localização registrada${geo.accuracy ? ` · ±${geo.accuracy} m` : ''}`;
+  return (
+    <a href={mapsUrl(geo)} target="_blank" rel="noreferrer" title="Ver no mapa"
+      className={cn('inline-flex items-center gap-1 text-[11px] font-semibold underline-offset-2 hover:underline', geo.outsideUnit ? 'text-destructive' : 'text-success', className)}>
+      <MapPin className="h-3 w-3" /> {label}
+    </a>
+  );
+};
