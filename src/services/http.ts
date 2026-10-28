@@ -1,6 +1,15 @@
 import type { ApiError } from '@/types';
 
-const BASE_URL = (import.meta.env.VITE_API_BASE_URL as string) || '/api/v1';
+// Aceita a URL da API com ou sem "/api/v1" (e com barra no fim) — erro comum
+// ao configurar a variável na Vercel. Sem a variável, usa "/api/v1" na mesma
+// origem (nginx no Docker ou o rewrite do vercel.json fazem o proxy).
+function apiBase(raw?: string) {
+  const url = (raw || '').trim().replace(/\/+$/, '');
+  if (!url) return '/api/v1';
+  return /\/api\/v\d+$/.test(url) ? url : `${url}/api/v1`;
+}
+
+const BASE_URL = apiBase(import.meta.env.VITE_API_BASE_URL as string);
 
 export const TOKEN_KEY = 'assethub_token';
 export const REFRESH_KEY = 'assethub_refresh_token';
