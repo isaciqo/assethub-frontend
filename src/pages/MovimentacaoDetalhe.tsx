@@ -25,7 +25,7 @@ import type { ApiError, Conservation, MovementDetail } from '@/types';
 const STEPS = [
   { key: 'solicitada', label: 'Solicitada' },
   { key: 'aprovacao', label: 'Aprovação' },
-  { key: 'entrega', label: 'Entrega' },
+  { key: 'entrega', label: 'Envio' },
   { key: 'recebimento', label: 'Recebimento' },
   { key: 'concluida', label: 'Concluída' },
 ];
@@ -79,7 +79,7 @@ const MovimentacaoDetalhe: React.FC = () => {
         <div className="card-clay p-4 mb-4 border-urucum/40 bg-urucum/5 flex flex-wrap items-center gap-2">
           <span className="font-display font-bold mr-auto">Sua ação</span>
           {actions.includes('approve') && <><Button variant="success" onClick={() => setDialog('approve')}><ThumbsUp /> Aprovar</Button><Button variant="outline" onClick={() => setDialog('reject')}><ThumbsDown /> Rejeitar</Button></>}
-          {actions.includes('deliver') && <Button variant="urucum" onClick={() => setDialog('deliver')}><Truck /> Confirmar entrega</Button>}
+          {actions.includes('deliver') && <Button variant="urucum" onClick={() => setDialog('deliver')}><Truck /> Confirmar envio</Button>}
           {actions.includes('receive') && <Button variant="urucum" onClick={() => setDialog('receive')}><PackageCheck /> Confirmar recebimento</Button>}
           {actions.includes('resolve_issue') && <Button onClick={() => setDialog('resolve')}><ShieldAlert /> Tratar ocorrência</Button>}
           {actions.includes('cancel') && <Button variant="ghost" onClick={() => setDialog('cancel')}><Ban /> Cancelar</Button>}
@@ -116,7 +116,7 @@ const MovimentacaoDetalhe: React.FC = () => {
                   <li key={a.id} className="py-2.5 flex flex-wrap items-center gap-3 text-sm">
                     <code className="font-bold text-primary w-20">{a.code}</code>
                     <span className="flex-1 min-w-[160px]">{a.description}</span>
-                    {dc && <span className="text-xs text-muted-foreground">entrega <ConservationBadge value={dc} /></span>}
+                    {dc && <span className="text-xs text-muted-foreground">envio <ConservationBadge value={dc} /></span>}
                     {rc && <span className="text-xs text-muted-foreground">recebimento <ConservationBadge value={rc} /></span>}
                   </li>
                 );
@@ -160,7 +160,7 @@ const MovimentacaoDetalhe: React.FC = () => {
                   </dd>
                 </div>
               ))}
-              <div><dt className="text-xs text-muted-foreground">Entrega</dt><dd className="font-semibold">{uName(m.delivererId)}{m.delivery && <span className="block text-xs font-normal text-muted-foreground">{fmtDateTime(m.delivery.at)}</span>}</dd></div>
+              <div><dt className="text-xs text-muted-foreground">Envio</dt><dd className="font-semibold">{uName(m.delivererId)}{m.delivery && <span className="block text-xs font-normal text-muted-foreground">{fmtDateTime(m.delivery.at)}</span>}</dd></div>
               <div><dt className="text-xs text-muted-foreground">Recebimento</dt><dd className="font-semibold">{uName(m.receiverId)}{m.receipt && <span className="block text-xs font-normal text-muted-foreground">{fmtDateTime(m.receipt.at)}</span>}</dd></div>
             </dl>
             {m.receipt?.hasIssue && <div className="mt-3 rounded-xl bg-destructive/10 p-3 text-xs text-destructive font-semibold">Ocorrência: {m.receipt.issueDescription}</div>}
@@ -232,7 +232,7 @@ const ApprovalDialog: React.FC<{ data: MovementDetail; mode: 'approve' | 'reject
   );
 };
 
-const HandoverDialog: React.FC<{ data: MovementDetail; stage: 'entrega' | 'recebimento' | null; onClose: () => void }> = ({ data, stage, onClose }) => {
+export const HandoverDialog: React.FC<{ data: MovementDetail; stage: 'entrega' | 'recebimento' | null; onClose: () => void }> = ({ data, stage, onClose }) => {
   const { user } = useAuth();
   const m = data.movement;
   const initial = () => Object.fromEntries(data.assets.map(a => [a.id, (stage === 'recebimento' ? m.delivery?.conditions.find(c => c.assetId === a.id)?.condition : null) || a.conservationStatus])) as Record<string, Conservation>;
@@ -257,14 +257,14 @@ const HandoverDialog: React.FC<{ data: MovementDetail; stage: 'entrega' | 'receb
   });
   const mut = useMutation(opts(
     () => (stage === 'entrega' ? movementsService.deliver(m.id, body()) : movementsService.receive(m.id, body())),
-    stage === 'entrega' ? 'Entrega confirmada e assinada' : 'Recebimento registrado',
+    stage === 'entrega' ? 'Envio confirmado e assinado' : 'Recebimento registrado',
   ));
 
   return (
     <Dialog open={!!stage} onOpenChange={o => !o && onClose()}>
       <DialogContent className="rounded-2xl max-w-xl max-h-[92vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="font-display">{stage === 'entrega' ? 'Confirmar entrega' : 'Confirmar recebimento'}</DialogTitle>
+          <DialogTitle className="font-display">{stage === 'entrega' ? 'Confirmar envio' : 'Confirmar recebimento'}</DialogTitle>
           <DialogDescription>Confira o estado de cada bem, registre fotos se necessário e assine.</DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
@@ -290,7 +290,7 @@ const HandoverDialog: React.FC<{ data: MovementDetail; stage: 'entrega' | 'receb
                 <Switch checked={hasIssue} onCheckedChange={setHasIssue} />
               </label>
               {hasIssue && <Textarea value={issue} onChange={e => setIssue(e.target.value)} placeholder="Descreva a ocorrência" rows={2} />}
-              <p className="text-[11px] text-muted-foreground">Se o estado piorar em relação à entrega, a ocorrência é aberta automaticamente e um gestor decide.</p>
+              <p className="text-[11px] text-muted-foreground">Se o estado piorar em relação ao envio, a ocorrência é aberta automaticamente e um gestor decide.</p>
             </div>
           )}
           <Field label="Fotos e documentos"><PhotoPicker value={photos} onChange={setPhotos} max={4} allowPdf={false} /></Field>

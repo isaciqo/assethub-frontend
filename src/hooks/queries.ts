@@ -1,6 +1,6 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import {
-  assetsService, discrepanciesService, inventoriesService, metaService, movementsService, unitsService, usersService,
+  assetsService, discrepanciesService, inventoriesService, meService, metaService, movementsService, possessionService, unitsService, usersService,
   type AssetFilters,
 } from '@/services/api';
 
@@ -38,3 +38,6 @@ export const useAssetDetail = (id?: string | null) =>
 
 export const useFacets = (unitId?: string) =>
   useQuery({ queryKey: ['facets', unitId], queryFn: () => assetsService.facets(unitId), ...STABLE });
+
+export const useMyArea = () => useQuery({ queryKey: ['me-area'], queryFn: meService.area, refetchInterval: 20_000 });
+export const usePossessionChecks = () => useQuery({ queryKey: ['possession-checks'], queryFn: possessionService.list, refetchInterval: 30_000 });

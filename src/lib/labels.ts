@@ -9,6 +9,7 @@ export const ROLE_LABEL: Record<Role, string> = {
   admin: 'Administração do patrimônio',
   gestor: 'Gestor(a) de unidade',
   conferente: 'Conferente',
+  servidor: 'Servidor(a)',
 };
 
 export const CONSERVATION: Record<Conservation, { label: string; variant: Variant }> = {
@@ -67,7 +68,7 @@ export const DISCREPANCY_ACTION: Record<DiscrepancyAction, string> = {
 
 export const MOVEMENT_STATUS: Record<MovementStatus, { label: string; variant: Variant }> = {
   aguardando_aprovacao: { label: 'Aguardando aprovação', variant: 'warn' },
-  aprovada: { label: 'Aguardando entrega', variant: 'info' },
+  aprovada: { label: 'Aguardando envio', variant: 'info' },
   em_transito: { label: 'Aguardando recebimento', variant: 'info' },
   com_pendencia: { label: 'Com ocorrência', variant: 'danger' },
   concluida: { label: 'Concluída', variant: 'ok' },
@@ -84,7 +85,7 @@ export const ASSET_EVENT_LABEL: Record<string, string> = {
   conferido: 'Conferido',
   pendencia_resolvida: 'Pendência resolvida',
   movimentacao_aberta: 'Movimentação aberta',
-  movimentacao_entrega: 'Entregue',
+  movimentacao_entrega: 'Enviado',
   movimentacao_concluida: 'Movimentado',
   movimentacao_encerrada: 'Movimentação encerrada',
 };

@@ -23,7 +23,7 @@ const Movimentacoes: React.FC = () => {
     <div className="animate-fade-in">
       <PageHeader
         title="Movimentações"
-        subtitle="Transferências, mudanças de responsável e devoluções — com aprovação, entrega, recebimento, assinaturas e termo."
+        subtitle="Transferências, mudanças de responsável e devoluções — com aprovação, envio, recebimento, assinaturas e termo."
         actions={<Button asChild><Link to="/movimentacoes/nova"><Plus /> Nova movimentação</Link></Button>}
       />
       <div className="flex gap-1 rounded-xl border p-1 bg-muted w-full sm:w-fit mb-4">
@@ -35,7 +35,7 @@ const Movimentacoes: React.FC = () => {
       </div>
 
       {isLoading ? <Spinner /> : data.length === 0 ? (
-        <EmptyState icon={ArrowLeftRight} title={scope === 'waiting_me' ? 'Nada aguardando você' : 'Nenhuma movimentação'} description="Quando uma movimentação precisar da sua aprovação, entrega ou recebimento, ela aparece aqui." />
+        <EmptyState icon={ArrowLeftRight} title={scope === 'waiting_me' ? 'Nada aguardando você' : 'Nenhuma movimentação'} description="Quando uma movimentação precisar da sua aprovação, envio ou recebimento, ela aparece aqui." />
       ) : (
         <div className="grid md:grid-cols-2 gap-3">
           {data.map(m => (

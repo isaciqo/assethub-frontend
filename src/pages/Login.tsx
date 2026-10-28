@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Loader2, LogIn, ShieldCheck, WifiOff, ScanLine, Briefcase, GraduationCap, ChevronRight } from 'lucide-react';
+import { Loader2, LogIn, ShieldCheck, WifiOff, ScanLine, Briefcase, GraduationCap, ChevronRight, Send, PackageCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Logo, UrnIllustration } from '@/components/brand/Brand';
@@ -15,6 +15,9 @@ const DEMO = [
   { email: 'admin@tjpa.demo', label: 'Administrador', hint: 'Cadastra bens, importa planilhas e decide tudo', icon: ShieldCheck },
   { email: 'gerente@tjpa.demo', label: 'Gerente', hint: 'Abre inventários, aprova e decide pendências', icon: Briefcase },
   { email: 'estagiario@tjpa.demo', label: 'Estagiário', hint: 'Confere os bens em campo e pede movimentações', icon: GraduationCap },
+  // Servidores: nos testes, a Paula é quem envia e o Diego é quem recebe.
+  { email: 'servidora@tjpa.demo', label: 'Paula — Servidora (quem envia)', hint: 'Envia o bem que o gerente pediu e valida os bens dela', icon: Send },
+  { email: 'servidor@tjpa.demo', label: 'Diego — Servidor (quem recebe)', hint: 'Confirma o recebimento e valida os bens dele', icon: PackageCheck },
 ];
 
 const Login: React.FC = () => {
@@ -54,7 +57,7 @@ const Login: React.FC = () => {
           </h1>
           <p className="mt-5 text-sidebar-foreground/75 leading-relaxed">
             Inventário patrimonial do TJPA pelo celular: aponte a câmera, confira em segundos, trabalhe sem internet
-            nas comarcas do interior e mantenha a trilha auditável de cada entrega e recebimento.
+            nas comarcas do interior e mantenha a trilha auditável de cada envio e recebimento.
           </p>
           <ul className="mt-8 space-y-3 text-sm">
             {[

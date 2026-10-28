@@ -83,7 +83,7 @@ export const AssetFormDialog: React.FC<Props> = ({ open, onOpenChange, asset, on
           <DialogTitle className="font-display">{editing ? `Editar bem ${asset!.code}` : 'Cadastrar bem'}</DialogTitle>
           <DialogDescription>
             {editing
-              ? 'Ajuste administrativo. Para mudar o bem de lugar ou de responsável com entrega e recebimento assinados, prefira uma movimentação.'
+              ? 'Ajuste administrativo. Para mudar o bem de lugar ou de responsável com envio e recebimento assinados, prefira uma movimentação.'
               : 'Use para a chegada de um bem avulso. Para vários bens de uma vez, importe a planilha.'}
           </DialogDescription>
         </DialogHeader>

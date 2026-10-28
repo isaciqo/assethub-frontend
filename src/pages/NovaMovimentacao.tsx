@@ -58,7 +58,7 @@ const NovaMovimentacao: React.FC = () => {
   });
 
   const destLocations = units.find(u => u.id === destUnit)?.locations || [];
-  const approverOptions = useMemo(() => users.filter(u => u.role !== 'conferente'), [users]);
+  const approverOptions = useMemo(() => users.filter(u => u.role === 'admin' || u.role === 'gestor'), [users]);
 
   const create = useMutation({
     mutationFn: () => movementsService.create({
@@ -86,7 +86,7 @@ const NovaMovimentacao: React.FC = () => {
 
   return (
     <div className="animate-fade-in max-w-3xl">
-      <PageHeader title="Nova movimentação" subtitle="Quem pede, quem aprova, quem entrega e quem recebe — tudo fica registrado e assinado." />
+      <PageHeader title="Nova movimentação" subtitle="Quem pede, quem aprova, quem envia e quem recebe — tudo fica registrado e assinado." />
 
       <div className="space-y-5">
         <section className="card-clay p-5 space-y-4">
@@ -164,7 +164,7 @@ const NovaMovimentacao: React.FC = () => {
             </Field>
           )}
           <div className="grid sm:grid-cols-2 gap-4">
-            <Field label="Quem entrega">
+            <Field label="Quem envia">
               <NativeSelect value={deliverer} onChange={e => setDeliverer(e.target.value)}>
                 <option value="">Selecione…</option>
                 {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}

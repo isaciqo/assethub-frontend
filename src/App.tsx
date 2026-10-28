@@ -25,6 +25,8 @@ import Importar from '@/pages/Importar';
 import Sincronizacao from '@/pages/Sincronizacao';
 import Verificar from '@/pages/Verificar';
 import NotFound from '@/pages/NotFound';
+import MinhaArea from '@/pages/MinhaArea';
+import { ServidorLayout } from '@/components/ServidorLayout';
 
 // Etiquetas carrega a lib de QR — só quando a tela for aberta.
 const Etiquetas = lazy(() => import('@/pages/Etiquetas'));
@@ -57,8 +59,21 @@ const PublicOnly: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 };
 
 const AppRoutes = () => {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   useEffect(() => { if (isAuthenticated) startAutoSync(); }, [isAuthenticated]);
+
+  // Servidor tem uma tela só; qualquer outro endereço leva de volta a ela.
+  if (isAuthenticated && user?.role === 'servidor') {
+    return (
+      <Routes>
+        <Route path="/verificar/:movementId" element={<Verificar />} />
+        <Route element={<ServidorLayout />}>
+          <Route path="/minha-area" element={<MinhaArea />} />
+        </Route>
+        <Route path="*" element={<Navigate to="/minha-area" replace />} />
+      </Routes>
+    );
+  }
 
   return (
     <Routes>

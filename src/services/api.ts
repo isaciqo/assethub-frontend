@@ -1,7 +1,7 @@
 import { http } from './http';
 import type {
   Asset, AssetDetail, AuthTokens, Dashboard, Discrepancy, DiscrepancyAction, ImportReport, Inventory, InventoryCheck,
-  InventoryDetail, InventorySnapshot, Meta, Movement, MovementDetail, Paged, Unit, User, VerifyResult,
+  InventoryDetail, InventorySnapshot, Meta, Movement, MovementDetail, MyArea, Paged, PossessionCheck, Unit, User, VerifyResult,
 } from '@/types';
 
 // Um service por recurso, como no MEDagenda (src/services/*.service.ts),
@@ -81,4 +81,16 @@ export const movementsService = {
   resolveIssue: (id: string, outcome: 'concluir' | 'desfazer', note: string) => http.post<Movement>(`/movements/${id}/resolve-issue`, { outcome, note }),
   cancel: (id: string, note: string) => http.post<Movement>(`/movements/${id}/cancel`, { note }),
   verify: (id: string, h?: string) => http.get<VerifyResult>(`/public/movements/${id}/verify`, { h }),
+};
+
+export const meService = {
+  area: () => http.get<MyArea>('/me/area'),
+  answer: (checkId: string, answers: { asset_id: string; has_it: boolean; note?: string }[]) =>
+    http.post<PossessionCheck>(`/me/possession-checks/${checkId}/answer`, { answers }),
+};
+
+export const possessionService = {
+  list: () => http.get<PossessionCheck[]>('/possession-checks'),
+  request: (userIds: string[]) =>
+    http.post<{ created: PossessionCheck[]; skipped: { name: string; reason: string }[] }>('/possession-checks', { user_ids: userIds }),
 };

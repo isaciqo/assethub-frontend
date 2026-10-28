@@ -1,6 +1,6 @@
 // Espelha os formatters do backend (src/lib/formatters.js).
 
-export type Role = 'admin' | 'gestor' | 'conferente';
+export type Role = 'admin' | 'gestor' | 'conferente' | 'servidor';
 export type Conservation = 'novo' | 'bom' | 'regular' | 'ruim' | 'inservivel';
 export type AssetStatus = 'ativo' | 'em_movimentacao' | 'nao_localizado' | 'baixado';
 export type CheckStatus = 'ok' | 'divergente' | 'outra_unidade' | 'nao_cadastrado' | 'duplicada';
@@ -319,4 +319,38 @@ export interface VerifyResult {
   chainValid: boolean;
   chainHead: string | null;
   hashMatches: boolean | null;
+}
+
+export interface PossessionCheck {
+  id: string;
+  number: string;
+  userId: string;
+  userName: string;
+  requestedByName: string;
+  status: 'pendente' | 'respondida';
+  items: { assetId: string; code: string; description: string; location: string; hasIt: boolean | null; note: string }[];
+  total: number;
+  confirmed: number;
+  missing: number;
+  answeredAt: string | null;
+  createdAt: string;
+}
+
+export type MyTask =
+  | {
+    kind: 'enviar' | 'receber';
+    movementId: string;
+    number: string;
+    reason: string;
+    assets: { code: string; description: string }[];
+    from: string;
+    to: string;
+    destinationLocation: string;
+    createdAt: string;
+  }
+  | { kind: 'validar'; check: PossessionCheck; createdAt: string };
+
+export interface MyArea {
+  assets: Asset[];
+  tasks: MyTask[];
 }

@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeftRight, Boxes, ClipboardCheck, Gauge, Plus, ScanLine, Timer, TriangleAlert, WifiOff } from 'lucide-react';
+import { ArrowLeftRight, Boxes, ClipboardCheck, ClipboardList, Gauge, Plus, ScanLine, Send, Timer, TriangleAlert, WifiOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { BarList, EmptyState, PageHeader, Spinner, StatTile } from '@/components/common';
 import { VaseProgress } from '@/components/brand/Brand';
 import { AssetDetailSheet } from '@/components/AssetDetail';
 import { AssetFormDialog } from '@/components/AssetFormDialog';
+import { PedirEnvioDialog, PedirValidacaoDialog, ValidacoesSection } from '@/components/GerenteRequests';
 import { useDashboard } from '@/hooks/queries';
 import { useAuth } from '@/lib/auth-context';
 import { ASSET_EVENT_LABEL, CHECK_METHOD, DISCREPANCY } from '@/lib/labels';
@@ -17,6 +18,8 @@ const Painel: React.FC = () => {
   const { data, isLoading, error } = useDashboard();
   const [creating, setCreating] = useState(false);
   const [openAsset, setOpenAsset] = useState<string | null>(null);
+  const [requestingSend, setRequestingSend] = useState(false);
+  const [requestingCheck, setRequestingCheck] = useState(false);
 
   if (isLoading) return <Spinner />;
   if (error || !data) return <EmptyState icon={WifiOff} title="Painel indisponível offline" description="O painel consolidado precisa de conexão. A conferência continua funcionando normalmente." action={<Button asChild><Link to="/conferir">Ir para a conferência</Link></Button>} />;
@@ -33,7 +36,13 @@ const Painel: React.FC = () => {
         subtitle="Situação do acervo, inventários em curso e produtividade da conferência."
         actions={(
           <>
-            {can('admin', 'gestor') && <Button variant="outline" onClick={() => setCreating(true)}><Plus /> Adicionar bem</Button>}
+            {can('admin', 'gestor') && (
+              <>
+                <Button variant="outline" onClick={() => setCreating(true)}><Plus /> Adicionar bem</Button>
+                <Button variant="outline" onClick={() => setRequestingSend(true)}><Send /> Pedir envio</Button>
+                <Button variant="outline" onClick={() => setRequestingCheck(true)}><ClipboardList /> Pedir validação</Button>
+              </>
+            )}
             <Button asChild variant="urucum"><Link to="/conferir"><ScanLine /> Conferir bens</Link></Button>
           </>
         )}
@@ -141,8 +150,12 @@ const Painel: React.FC = () => {
         </ol>
       </section>
 
+      {can('admin', 'gestor') && <ValidacoesSection />}
+
       <AssetDetailSheet assetId={openAsset} onClose={() => setOpenAsset(null)} />
       <AssetFormDialog open={creating} onOpenChange={setCreating} onSaved={a => setOpenAsset(a.id)} />
+      <PedirEnvioDialog open={requestingSend} onOpenChange={setRequestingSend} />
+      <PedirValidacaoDialog open={requestingCheck} onOpenChange={setRequestingCheck} />
     </div>
   );
 };
