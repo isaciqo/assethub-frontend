@@ -22,6 +22,7 @@ import { normalizeCode, normalizeText, fmtDateTime } from '@/lib/format';
 import { CHECK_METHOD, CHECK_STATUS, CONSERVATION, CONSERVATION_ORDER } from '@/lib/labels';
 import { cn } from '@/lib/utils';
 import { useGeoWatch } from '@/lib/geo';
+import { assetsService } from '@/services/api';
 import { toast } from '@/components/ui/sonner';
 import type { ApiError, CheckMethod, Conservation, SnapshotAsset } from '@/types';
 
@@ -68,6 +69,7 @@ const Conferencia: React.FC = () => {
   const [preparing, setPreparing] = useState(false);
   const [closed, setClosed] = useState(false);
   const lastAt = useRef(Date.now());
+  const lookingUp = useRef(new Set<string>());
   const gps = useGeoWatch();
 
   useEffect(() => { localStorage.setItem('assethub_scan_mode', mode); }, [mode]);
@@ -173,13 +175,37 @@ const Conferencia: React.FC = () => {
     photos: [],
   });
 
-  const handleCode = useCallback((raw: string, method: CheckMethod) => {
+  const handleCode = useCallback(async (raw: string, method: CheckMethod) => {
     if (!raw) {
       feedback('error');
       toast.error('Não consegui ler o número da plaqueta', { description: 'Aproxime a câmera, melhore a luz ou digite o tombamento.' });
       return;
     }
-    const asset = byCode.get(normalizeCode(raw)) || null;
+    let asset = byCode.get(normalizeCode(raw)) || null;
+
+    // Fora da lista do aparelho: procura o código na base inteira. Achou, dá
+    // baixa como qualquer bem (o servidor inclui o bem no inventário). Sem
+    // internet, registra pelo código e o servidor localiza ao sincronizar.
+    if (!asset) {
+      if (!navigator.onLine) {
+        save(draftFor(null, raw.trim(), method));
+        toast.success(`${raw.trim()} registrado`, { description: 'Sem internet: o bem é localizado pelo código ao sincronizar.', duration: 2500 });
+        return;
+      }
+      // A câmera continua lendo enquanto a busca responde: uma busca por código.
+      const key = normalizeCode(raw);
+      if (lookingUp.current.has(key)) return;
+      lookingUp.current.add(key);
+      const found = await assetsService.byCode(raw.trim()).then(r => r.asset).catch(() => null)
+        .finally(() => lookingUp.current.delete(key));
+      if (found) {
+        asset = {
+          id: found.id, code: found.code, codeNormalized: found.codeNormalized, description: found.description,
+          category: found.category, brand: found.brand, serialNumber: found.serialNumber, location: found.location,
+          room: found.room, responsibleName: found.responsibleName, conservationStatus: found.conservationStatus,
+        };
+      }
+    }
 
     if (!asset) {
       feedback('error');
@@ -215,6 +241,17 @@ const Conferencia: React.FC = () => {
       duration: 2500,
     });
   }, [byCode, checked, mode, room, save]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Bem achado fora da lista entra no inventário no servidor: assim que a
+  // conferência sobe, baixa o pacote de novo para a barra contar com ele.
+  const refreshedFor = useRef(new Set<string>());
+  useEffect(() => {
+    if (!online || !inventoryId || !snapshot) return;
+    const outside = ops.filter(o => o.status === 'SYNCED' && o.asset_id && !byId.has(o.asset_id) && !refreshedFor.current.has(o.operation_id));
+    if (!outside.length) return;
+    outside.forEach(o => refreshedFor.current.add(o.operation_id));
+    prepareOffline(inventoryId, user?.name || '').then(reload).catch(() => {});
+  }, [ops]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const openEdit = (op: PendingOp) => {
     const asset = op.asset_id ? byId.get(op.asset_id) || null : null;
