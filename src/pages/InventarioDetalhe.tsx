@@ -98,7 +98,7 @@ const InventarioDetalhe: React.FC = () => {
         }
       />
 
-      <div className="grid lg:grid-cols-[280px_1fr] gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-4">
         <div className="card-clay p-5 flex flex-col items-center text-center">
           <VaseProgress value={s.progress} size={190} label="conferido" />
           <div className="mt-3 font-display text-2xl font-bold tabular">{s.checked} <span className="text-muted-foreground text-base font-semibold">de {s.expected}</span></div>
@@ -111,7 +111,7 @@ const InventarioDetalhe: React.FC = () => {
           )}
         </div>
 
-        <div className="space-y-4">
+        <div className="space-y-4 min-w-0">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <StatTile tone="ok" label="Sem divergência" value={s.ok} />
             <StatTile tone="warn" label="Com divergência" value={s.divergent + s.otherUnit} hint={s.otherUnit ? `${s.otherUnit} de outra comarca` : undefined} />
@@ -119,7 +119,7 @@ const InventarioDetalhe: React.FC = () => {
             <StatTile tone="info" label="Tempo médio/bem" value={s.avgSeconds ? `${s.avgSeconds.toFixed(1)}s` : '—'} hint={`${s.offline} offline · ${s.notRegistered} não cadastrado(s)`} />
           </div>
 
-          <div className="grid md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <section className="card-clay p-5">
               <h2 className="font-display font-bold">Progresso por setor</h2>
               <div className="mt-4 max-h-80 overflow-y-auto pr-1">
