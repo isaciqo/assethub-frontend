@@ -53,6 +53,15 @@ export const Scanner: React.FC<Props> = ({ active, onDetected, pickOcrCandidate,
   const [torchAvailable, setTorchAvailable] = useState(false);
   const [ocrBusy, setOcrBusy] = useState(false);
   const [flash, setFlash] = useState(false);
+  // Outra aba, câmera de foto ou app em segundo plano: a leitura para e volta
+  // sozinha quando a tela reaparece.
+  const [visible, setVisible] = useState(() => document.visibilityState === 'visible');
+  useEffect(() => {
+    const on = () => setVisible(document.visibilityState === 'visible');
+    document.addEventListener('visibilitychange', on);
+    return () => document.removeEventListener('visibilitychange', on);
+  }, []);
+  const reading = active && visible;
 
   const emit = useCallback((code: string, method: CheckMethod) => {
     const now = Date.now();
@@ -65,7 +74,7 @@ export const Scanner: React.FC<Props> = ({ active, onDetected, pickOcrCandidate,
   }, [onDetected]);
 
   useEffect(() => {
-    if (!active) return undefined;
+    if (!reading) return undefined;
     let cancelled = false;
     setError(null);
     const reader = new BrowserMultiFormatReader(hints, { delayBetweenScanAttempts: 120 });
@@ -99,7 +108,7 @@ export const Scanner: React.FC<Props> = ({ active, onDetected, pickOcrCandidate,
       controlsRef.current = null;
       setTorch(false);
     };
-  }, [active, emit]);
+  }, [reading, emit]);
 
   const toggleTorch = async () => {
     try {

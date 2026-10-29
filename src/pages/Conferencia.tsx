@@ -39,6 +39,8 @@ interface Draft {
   notes: string;
   photos: string[];
   editing?: PendingOp;
+  // Bem já conferido: a ficha abre igual, mas confirmar não grava de novo.
+  already?: boolean;
 }
 
 const MAX_ELAPSED = 10 * 60 * 1000;
@@ -70,6 +72,8 @@ const Conferencia: React.FC = () => {
   const [closed, setClosed] = useState(false);
   const lastAt = useRef(Date.now());
   const lookingUp = useRef(new Set<string>());
+  const draftOpen = useRef(false);
+  useEffect(() => { draftOpen.current = !!draft; }, [draft]);
   const gps = useGeoWatch();
 
   useEffect(() => { localStorage.setItem('assethub_scan_mode', mode); }, [mode]);
@@ -176,25 +180,29 @@ const Conferencia: React.FC = () => {
   });
 
   const handleCode = useCallback(async (raw: string, method: CheckMethod) => {
+    // Com a ficha aberta, a câmera não confere mais nada.
+    if (draftOpen.current) return;
     if (!raw) {
       feedback('error');
       toast.error('Não consegui ler o número da plaqueta', { description: 'Aproxime a câmera, melhore a luz ou digite o tombamento.' });
       return;
     }
+    // Modo detalhado: desliga a câmera já na leitura, antes de qualquer busca.
+    if (mode === 'detalhada') { draftOpen.current = true; setCameraOn(false); }
     let asset = byCode.get(normalizeCode(raw)) || null;
 
     // Fora da lista do aparelho: procura o código na base inteira. Achou, dá
     // baixa como qualquer bem (o servidor inclui o bem no inventário). Sem
     // internet, registra pelo código e o servidor localiza ao sincronizar.
-    if (!asset) {
-      if (!navigator.onLine) {
-        save(draftFor(null, raw.trim(), method));
-        toast.success(`${raw.trim()} conferido`, { description: 'Sem internet: sincroniza quando o sinal voltar.', duration: 2500 });
-        return;
-      }
+    if (!asset && !navigator.onLine && mode === 'rapida') {
+      save(draftFor(null, raw.trim(), method));
+      toast.success(`${raw.trim()} conferido`, { description: 'Sem internet: sincroniza quando o sinal voltar.', duration: 2500 });
+      return;
+    }
+    if (!asset && navigator.onLine) {
       // A câmera continua lendo enquanto a busca responde: uma busca por código.
       const key = normalizeCode(raw);
-      if (lookingUp.current.has(key)) return;
+      if (lookingUp.current.has(key)) { if (mode === 'detalhada') draftOpen.current = false; return; }
       lookingUp.current.add(key);
       const found = await assetsService.byCode(raw.trim()).then(r => r.asset).catch(() => null)
         .finally(() => lookingUp.current.delete(key));
@@ -210,6 +218,11 @@ const Conferencia: React.FC = () => {
     // Leitura sempre termina em sucesso na tela (pedido para o vídeo do MVP):
     // código fora da base é registrado mesmo assim (o servidor abre a pendência
     // de não cadastrado) e bem já conferido não gera aviso nem registro novo.
+    if (mode === 'detalhada') {
+      setDraft({ ...draftFor(asset, asset?.code || raw.trim(), method), already: !!(asset && checked.get(asset.id)) });
+      return;
+    }
+
     if (!asset) {
       save(draftFor(null, raw.trim(), method));
       toast.success(`${raw.trim()} conferido`, { duration: 2500 });
@@ -222,12 +235,6 @@ const Conferencia: React.FC = () => {
         description: `${asset.location || 'sem setor'} · ${CONSERVATION[asset.conservationStatus].label}`,
         duration: 2500,
       });
-      return;
-    }
-
-    if (mode === 'detalhada') {
-      setCameraOn(false);
-      setDraft(draftFor(asset, asset.code, method));
       return;
     }
 
@@ -373,7 +380,7 @@ const Conferencia: React.FC = () => {
         )}
       </form>
 
-      <Scanner active={cameraOn} onDetected={handleCode} pickOcrCandidate={pickOcr} />
+      <Scanner active={cameraOn && !draft} onDetected={handleCode} pickOcrCandidate={pickOcr} />
 
       <Tabs defaultValue="faltam">
         <TabsList className="w-full grid grid-cols-2 rounded-xl">
@@ -437,7 +444,11 @@ const Conferencia: React.FC = () => {
       </div>
       <div className="h-16" />
 
-      <CheckSheet draft={draft} locations={locations} onClose={() => setDraft(null)} onSave={async d => { await save(d); setDraft(null); if (!d.editing) toast.success(d.asset ? `${d.asset.code} conferido` : 'Bem não previsto registrado'); }} />
+      <CheckSheet draft={draft} locations={locations} onClose={() => setDraft(null)} onSave={async d => {
+        if (d.already) feedback('ok'); else await save(d);
+        setDraft(null);
+        if (!d.editing) toast.success(`${d.asset?.code || d.code} conferido`, { description: d.asset?.description, duration: 2500 });
+      }} />
     </div>
   );
 };
@@ -456,11 +467,11 @@ const CheckSheet: React.FC<{ draft: Draft | null; locations: string[]; onClose: 
         <div className="motif-band -mx-6 -mt-6 mb-4 rounded-t-3xl" />
         <SheetHeader className="text-left">
           <SheetTitle className="font-display text-xl">
-            {a ? <><code className="text-primary">{a.code}</code> · {a.description}</> : <>Bem não previsto: <code className="text-destructive">{d.code}</code></>}
+            {a ? <><code className="text-primary">{a.code}</code> · {a.description}</> : <code className="text-primary">{d.code}</code>}
           </SheetTitle>
           <SheetDescription>
             {a ? `Cadastro: ${a.location || 'sem setor'} · ${a.responsibleName || 'sem responsável'} · ${CONSERVATION[a.conservationStatus].label}${a.serialNumber ? ` · S/N ${a.serialNumber}` : ''}`
-              : 'Este código não está na lista prevista do inventário. Ele será registrado e o servidor verifica se é de outra comarca ou se não existe na base.'}
+              : 'Confirme o estado para dar baixa.'}
           </SheetDescription>
         </SheetHeader>
 
@@ -497,7 +508,7 @@ const CheckSheet: React.FC<{ draft: Draft | null; locations: string[]; onClose: 
 
         <div className="mt-6 flex gap-2">
           <Button variant="outline" size="xl" className="px-4" onClick={onClose}>Cancelar</Button>
-          <Button size="xl" className="flex-1 min-w-0" disabled={saving || (!a && !d.description.trim())} onClick={async () => { setSaving(true); try { await onSave(d); } finally { setSaving(false); } }}>
+          <Button size="xl" className="flex-1 min-w-0" disabled={saving} onClick={async () => { setSaving(true); try { await onSave(d); } finally { setSaving(false); } }}>
             {saving ? <Loader2 className="animate-spin" /> : <Check />} {d.editing ? 'Salvar correção' : <>Confirmar<span className="hidden sm:inline"> conferência</span></>}
           </Button>
         </div>
