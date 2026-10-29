@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils';
 import { toast } from '@/components/ui/sonner';
 import type { ApiError, ImportReport } from '@/types';
 
-const FIELDS = ['code', 'description', 'category', 'brand', 'serial_number', 'unit', 'location', 'responsible_name', 'conservation_status', 'acquisition_date', 'value', 'notes'];
+const FIELDS = ['code', 'description', 'category', 'brand', 'serial_number', 'unit', 'location', 'room', 'responsible_name', 'conservation_status', 'acquisition_date', 'value', 'notes'];
 const REQUIRED = ['code', 'description'];
 
 // Importação em 3 passos: arquivo → prévia (nada gravado) → confirmar.
@@ -67,7 +67,7 @@ const Importar: React.FC = () => {
             <StatTile label="Sem mudança" value={result.unchanged} />
             <StatTile tone={result.errors.length ? 'danger' : 'ok'} label="Linhas com erro" value={result.errors.length} />
           </div>
-          {result.createdUnits.length > 0 && <p className="text-sm mt-4">Unidades criadas automaticamente: <strong>{result.createdUnits.map(u => u.name).join(', ')}</strong></p>}
+          {result.createdUnits.length > 0 && <p className="text-sm mt-4">Comarcas criadas automaticamente: <strong>{result.createdUnits.map(u => u.name).join(', ')}</strong></p>}
           <div className="flex justify-center gap-2 mt-6">
             <Button variant="outline" onClick={reset}>Importar outro arquivo</Button>
             <Button asChild><Link to="/bens">Ver bens</Link></Button>
@@ -91,7 +91,7 @@ const Importar: React.FC = () => {
               <input ref={input} type="file" accept=".csv,.xlsx,.txt" hidden onChange={e => choose(e.target.files?.[0])} />
             </button>
             <div className="card-clay p-4 space-y-3">
-              <Field label="Unidade padrão" hint="Usada nas linhas sem coluna de unidade. Unidades novas citadas na planilha são criadas automaticamente.">
+              <Field label="Comarca padrão" hint="Usada nas linhas sem coluna de comarca. Comarcas novas citadas na planilha são criadas automaticamente.">
                 <NativeSelect value={defaultUnit} onChange={e => setDefaultUnit(e.target.value)}>
                   <option value="">Nenhuma</option>
                   {units.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
@@ -131,13 +131,13 @@ const Importar: React.FC = () => {
                     <StatTile label="Sem mudança" value={preview.unchanged} />
                     <StatTile tone={preview.errors.length ? 'danger' : 'ok'} label="Linhas com erro" value={preview.errors.length} hint={`${preview.totalRows} linhas no arquivo`} />
                   </div>
-                  {preview.createdUnits.length > 0 && <div className="rounded-2xl bg-info/10 p-3 text-sm">Serão criadas as unidades: <strong>{preview.createdUnits.map(u => u.name).join(', ')}</strong></div>}
+                  {preview.createdUnits.length > 0 && <div className="rounded-2xl bg-info/10 p-3 text-sm">Serão criadas as comarcas: <strong>{preview.createdUnits.map(u => u.name).join(', ')}</strong></div>}
 
                   <section className="card-clay overflow-hidden">
                     <h2 className="font-display font-bold px-5 pt-4">Amostra</h2>
                     <div className="overflow-x-auto">
                       <table className="w-full text-sm mt-3">
-                        <thead className="bg-muted/60 text-[11px] uppercase text-muted-foreground"><tr>{['Linha', 'Tombamento', 'Descrição', 'Local', 'Responsável', 'Estado', ''].map(h => <th key={h} className="text-left px-4 py-2">{h}</th>)}</tr></thead>
+                        <thead className="bg-muted/60 text-[11px] uppercase text-muted-foreground"><tr>{['Linha', 'Tombamento', 'Descrição', 'Setor', 'Responsável', 'Estado', ''].map(h => <th key={h} className="text-left px-4 py-2">{h}</th>)}</tr></thead>
                         <tbody className="divide-y">
                           {preview.sample.map(s => (
                             <tr key={s.line}>

@@ -1,12 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { CircleCheck, ClipboardCheck, Loader2, MapPin, PackageCheck, Send, ThumbsDown, ThumbsUp } from 'lucide-react';
+import { CircleCheck, ClipboardCheck, Loader2, MapPin, PackageCheck, PackagePlus, Send, ThumbsDown, ThumbsUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { ConservationBadge, EmptyState, Spinner } from '@/components/common';
 import { HandoverDialog } from '@/pages/MovimentacaoDetalhe';
+import { MeusPedidos, PedirBemDialog } from '@/components/Solicitacoes';
+import { placeLabel } from '@/components/Sectors';
 import { useMovement, useMyArea } from '@/hooks/queries';
 import { meService } from '@/services/api';
 import { useAuth } from '@/lib/auth-context';
@@ -22,6 +24,7 @@ const MinhaArea: React.FC = () => {
   const { data, isLoading, error } = useMyArea();
   const [handover, setHandover] = useState<HandoverTask | null>(null);
   const [validating, setValidating] = useState<PossessionCheck | null>(null);
+  const [asking, setAsking] = useState(false);
 
   if (isLoading) return <Spinner />;
   if (error || !data) return <EmptyState title="Não foi possível carregar" description="Verifique a conexão e tente de novo." />;
@@ -32,6 +35,8 @@ const MinhaArea: React.FC = () => {
         <p className="text-sm font-semibold text-urucum">Olá, {user?.name.split(' ')[0]}</p>
         <h1 className="font-display text-3xl font-extrabold mt-1">Minha área</h1>
         <p className="text-sm text-muted-foreground mt-1">O que você precisa fazer e os bens que estão no seu nome.</p>
+        <Button className="mt-4" size="lg" onClick={() => setAsking(true)}><PackagePlus /> Pedir um bem</Button>
+        <MeusPedidos />
       </div>
 
       <section aria-labelledby="todo">
@@ -69,7 +74,7 @@ const MinhaArea: React.FC = () => {
                   {a.status === 'em_movimentacao' ? <Badge variant="info">Em envio</Badge> : <ConservationBadge value={a.conservationStatus} />}
                 </div>
                 <p className="font-semibold leading-tight mt-1">{a.description}</p>
-                <p className="text-xs text-muted-foreground mt-1.5 flex items-center gap-1"><MapPin className="h-3.5 w-3.5" /> {a.location || 'Sem sala'}</p>
+                <p className="text-xs text-muted-foreground mt-1.5 flex items-center gap-1"><MapPin className="h-3.5 w-3.5" /> {placeLabel(a.location, a.room)}</p>
               </article>
             ))}
           </div>
@@ -78,6 +83,7 @@ const MinhaArea: React.FC = () => {
 
       <TaskHandover task={handover} onClose={() => setHandover(null)} />
       <ValidateDialog check={validating} onClose={() => setValidating(null)} />
+      <PedirBemDialog open={asking} onOpenChange={setAsking} />
     </div>
   );
 };

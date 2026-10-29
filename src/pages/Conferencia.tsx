@@ -204,7 +204,7 @@ const Conferencia: React.FC = () => {
     save(d);
     const moved = room && normalizeText(room) !== normalizeText(asset.location);
     toast[moved ? 'warning' : 'success'](`${asset.code} · ${asset.description}`, {
-      description: moved ? `Cadastrado em "${asset.location}" — registrado aqui em "${room}"` : `${asset.location || 'sem local'} · ${CONSERVATION[asset.conservationStatus].label}`,
+      description: moved ? `Cadastrado em "${asset.location}" — registrado aqui em "${room}"` : `${asset.location || 'sem setor'} · ${CONSERVATION[asset.conservationStatus].label}`,
       duration: 2500,
     });
   }, [byCode, checked, mode, room, save]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -274,10 +274,10 @@ const Conferencia: React.FC = () => {
       </div>
 
       <div className="card-clay p-3 grid sm:grid-cols-[1fr_auto] gap-3 sm:items-end">
-        <Field label="Estou na sala/setor" htmlFor="room">
+        <Field label="Estou no setor" htmlFor="room">
           <div className="relative">
             <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-primary" />
-            <Input id="room" list="rooms" value={room} onChange={e => setRoom(e.target.value)} placeholder="Escolha ou digite a sala" className="pl-9 h-11 rounded-xl" />
+            <Input id="room" list="rooms" value={room} onChange={e => setRoom(e.target.value)} placeholder="Escolha a vara, o gabinete ou o setor" className="pl-9 h-11 rounded-xl" />
             <datalist id="rooms">{locations.map(l => <option key={l} value={l} />)}</datalist>
           </div>
         </Field>
@@ -293,7 +293,7 @@ const Conferencia: React.FC = () => {
 
       <div className="text-xs text-muted-foreground px-1 -mt-1">
         {mode === 'rapida'
-          ? 'Varredura rápida: cada leitura confere o bem na hora, com os dados do cadastro e a sala atual. Toque em "Corrigir" se algo estiver diferente.'
+          ? 'Varredura rápida: cada leitura confere o bem na hora, com os dados do cadastro e o setor atual. Toque em "Corrigir" se algo estiver diferente.'
           : 'Detalhada: cada leitura abre a ficha para conferir estado, responsável, observações e foto.'}
       </div>
 
@@ -322,14 +322,14 @@ const Conferencia: React.FC = () => {
 
       <Tabs defaultValue="faltam">
         <TabsList className="w-full grid grid-cols-2 rounded-xl">
-          <TabsTrigger value="faltam" className="rounded-lg">Faltam {room ? 'nesta sala' : ''} ({remaining.length})</TabsTrigger>
+          <TabsTrigger value="faltam" className="rounded-lg">Faltam {room ? 'neste setor' : ''} ({remaining.length})</TabsTrigger>
           <TabsTrigger value="feitos" className="rounded-lg">Conferidos aqui ({ops.length})</TabsTrigger>
         </TabsList>
         <TabsContent value="faltam">
           {remaining.length === 0 ? (
             <div className="card-clay p-6 text-center text-sm">
               <PackageSearch className="h-8 w-8 mx-auto text-success mb-2" />
-              {roomAssets.length ? 'Todos os bens previstos desta sala foram conferidos.' : room ? 'Nenhum bem previsto nesta sala.' : 'Todos os bens previstos foram conferidos.'}
+              {roomAssets.length ? 'Todos os bens previstos deste setor foram conferidos.' : room ? 'Nenhum bem previsto neste setor.' : 'Todos os bens previstos foram conferidos.'}
             </div>
           ) : (
             <ul className="card-clay divide-y">
@@ -404,8 +404,8 @@ const CheckSheet: React.FC<{ draft: Draft | null; locations: string[]; onClose: 
             {a ? <><code className="text-primary">{a.code}</code> · {a.description}</> : <>Bem não previsto: <code className="text-destructive">{d.code}</code></>}
           </SheetTitle>
           <SheetDescription>
-            {a ? `Cadastro: ${a.location || 'sem local'} · ${a.responsibleName || 'sem responsável'} · ${CONSERVATION[a.conservationStatus].label}${a.serialNumber ? ` · S/N ${a.serialNumber}` : ''}`
-              : 'Este código não está na lista prevista do inventário. Ele será registrado e o servidor verifica se é de outra unidade ou se não existe na base.'}
+            {a ? `Cadastro: ${a.location || 'sem setor'} · ${a.responsibleName || 'sem responsável'} · ${CONSERVATION[a.conservationStatus].label}${a.serialNumber ? ` · S/N ${a.serialNumber}` : ''}`
+              : 'Este código não está na lista prevista do inventário. Ele será registrado e o servidor verifica se é de outra comarca ou se não existe na base.'}
           </SheetDescription>
         </SheetHeader>
 

@@ -51,17 +51,17 @@ const Etiquetas: React.FC = () => {
       {!codes && (
         <div className="card-clay p-3 grid sm:grid-cols-2 gap-3 mb-4 no-print">
           <NativeSelect value={unitId} onChange={e => { setUnitId(e.target.value); setLocation(''); }} aria-label="Unidade">
-            <option value="">Escolha a unidade…</option>
+            <option value="">Escolha a comarca…</option>
             {units.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
           </NativeSelect>
           <NativeSelect value={location} onChange={e => setLocation(e.target.value)} disabled={!unitId} aria-label="Sala">
-            <option value="">Todas as salas</option>
+            <option value="">Todos os setores</option>
             {facets?.locations.map(l => <option key={l} value={l}>{l}</option>)}
           </NativeSelect>
         </div>
       )}
       {!unitId && !codes ? (
-        <EmptyState icon={QrCode} title="Escolha uma unidade" description="As etiquetas são geradas para os bens da unidade (ou de uma sala)." />
+        <EmptyState icon={QrCode} title="Escolha uma comarca" description="As etiquetas são geradas para os bens da comarca (ou de um setor)." />
       ) : isLoading ? <Spinner /> : (
         <div className="labels-grid grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {data?.items.map(a => <Label key={a.id} asset={a} unitName={unitName[a.unitId] || ''} />)}

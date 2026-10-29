@@ -32,13 +32,20 @@ export interface GeoRecord {
   outsideUnit: boolean;
 }
 
+// Estrutura do Tribunal: Comarca (Unit) → Setor (vara, gabinete…) → Sala.
+export type SectorKind = 'vara' | 'gabinete' | 'juizado' | 'secretaria' | 'coordenadoria' | 'almoxarifado' | 'outro';
+export interface Sector { name: string; kind: SectorKind }
+
 export interface Unit {
   id: string;
   name: string;
   code: string;
   city: string;
+  kind: 'sede' | 'comarca';
   region: 'capital' | 'interior';
+  // Nomes dos setores; "sectors" traz os mesmos nomes com o tipo.
   locations: string[];
+  sectors: Sector[];
   geo: { lat: number; lng: number } | null;
   assetCount?: number;
 }
@@ -62,7 +69,10 @@ export interface Asset {
   brand: string;
   serialNumber: string;
   unitId: string;
+  // Setor (vara, gabinete, secretaria…).
   location: string;
+  // Sala dentro do setor — opcional.
+  room: string;
   responsibleName: string;
   conservationStatus: Conservation;
   status: AssetStatus;
@@ -169,6 +179,7 @@ export interface SnapshotAsset {
   brand: string;
   serialNumber: string;
   location: string;
+  room?: string;
   responsibleName: string;
   conservationStatus: Conservation;
 }
@@ -306,13 +317,20 @@ export interface ImportReport {
 }
 
 export interface Dashboard {
-  totals: { assets: number; units: number; openInventories: number; openDiscrepancies: number; movementsInProgress: number };
+  totals: {
+    assets: number; units: number; openInventories: number; openDiscrepancies: number; movementsInProgress: number;
+    openRequests: number; urgentRequests: number;
+  };
   assetsByStatus: Partial<Record<AssetStatus, number>>;
   assetsByCondition: Partial<Record<Conservation, number>>;
   discrepanciesByType: Partial<Record<DiscrepancyType, number>>;
   movementsByStatus: Partial<Record<MovementStatus, number>>;
   productivity: { totalChecks: number; offlineChecks: number; avgSecondsPerAsset: number | null; byMethod: Partial<Record<CheckMethod, number>> };
-  coverage: { unitId: string; name: string; code: string; region: 'capital' | 'interior'; assets: number; checked: number; pct: number }[];
+  coverage: {
+    unitId: string; name: string; code: string; kind: 'sede' | 'comarca'; region: 'capital' | 'interior';
+    assets: number; checked: number; pct: number;
+    sectors: { name: string; kind: SectorKind; assets: number; checked: number; pct: number }[];
+  }[];
   equity: { capital: number; interior: number };
   inventories: Inventory[];
   recentActivity: AssetEvent[];
@@ -366,3 +384,40 @@ export interface MyArea {
   assets: Asset[];
   tasks: MyTask[];
 }
+
+export interface AssetFacets { categories: string[]; locations: string[]; rooms: string[]; brands: string[]; responsibles: string[] }
+
+export type RequestStatus = 'aberta' | 'em_analise' | 'em_atendimento' | 'atendida' | 'encaminhada_compra' | 'recusada' | 'cancelada';
+
+// Solicitação de bem (o "ofício" do setor).
+export interface AssetRequest {
+  id: string;
+  number: string;
+  requestedBy: string;
+  requestedByName: string;
+  unitId: string;
+  unitName?: string;
+  sector: string;
+  room: string;
+  item: string;
+  category: string;
+  quantity: number;
+  justification: string;
+  urgency: 'normal' | 'urgente';
+  attachmentId: string | null;
+  status: RequestStatus;
+  handledBy: string | null;
+  handledByName: string;
+  decisionNote: string;
+  movementIds: string[];
+  purchaseJustification: string;
+  history: { at: string; by: string; byName: string; action: string; note: string }[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AssetRequestDetail extends AssetRequest {
+  movements: { id: string; number: string; status: MovementStatus; assetCount: number }[];
+}
+
+export interface CatalogItem { item: string; category: string }

@@ -132,13 +132,13 @@ const NovaMovimentacao: React.FC = () => {
         </section>
 
         <section className="card-clay p-5 grid sm:grid-cols-2 gap-4">
-          <Field label="Unidade de destino">
+          <Field label="Comarca de destino">
             <NativeSelect value={destUnit} onChange={e => setDestUnit(e.target.value)} disabled={type === 'transferencia_interna' && !!originUnit}>
               <option value="">Selecione…</option>
               {units.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
             </NativeSelect>
           </Field>
-          <Field label="Sala/setor de destino">
+          <Field label="Setor de destino">
             <Input list="dest-locs" value={destLocation} onChange={e => setDestLocation(e.target.value)} />
             <datalist id="dest-locs">{destLocations.map(l => <option key={l} value={l} />)}</datalist>
           </Field>

@@ -80,7 +80,7 @@ const InventarioDetalhe: React.FC = () => {
       <PageHeader
         eyebrow={inv.number}
         title={inv.name}
-        subtitle={<>{inv.unit.name}{inv.locations.length ? ` · ${inv.locations.length} sala(s)` : ' · unidade inteira'} · aberto {fmtRelative(inv.startedAt)}</>}
+        subtitle={<>{inv.unit.name}{inv.locations.length ? ` · ${inv.locations.join(', ')}` : ' · comarca inteira'} · aberto {fmtRelative(inv.startedAt)}</>}
         actions={
           <>
             {open && (
@@ -114,14 +114,14 @@ const InventarioDetalhe: React.FC = () => {
         <div className="space-y-4">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <StatTile tone="ok" label="Sem divergência" value={s.ok} />
-            <StatTile tone="warn" label="Com divergência" value={s.divergent + s.otherUnit} hint={s.otherUnit ? `${s.otherUnit} de outra unidade` : undefined} />
+            <StatTile tone="warn" label="Com divergência" value={s.divergent + s.otherUnit} hint={s.otherUnit ? `${s.otherUnit} de outra comarca` : undefined} />
             <StatTile tone="danger" label={open ? 'Faltam conferir' : 'Não localizados'} value={open ? s.remaining : s.notFound} />
             <StatTile tone="info" label="Tempo médio/bem" value={s.avgSeconds ? `${s.avgSeconds.toFixed(1)}s` : '—'} hint={`${s.offline} offline · ${s.notRegistered} não cadastrado(s)`} />
           </div>
 
           <div className="grid md:grid-cols-2 gap-4">
             <section className="card-clay p-5">
-              <h2 className="font-display font-bold">Progresso por sala</h2>
+              <h2 className="font-display font-bold">Progresso por setor</h2>
               <div className="mt-4 max-h-80 overflow-y-auto pr-1">
                 <BarList rows={(s.byLocation || []).map(l => ({ label: l.location, value: l.checked, max: l.expected, display: `${l.checked}/${l.expected}`, hint: `${l.location}: ${l.checked} de ${l.expected}` }))} />
               </div>

@@ -1,9 +1,11 @@
 import React from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
-  ArrowLeftRight, Boxes, ClipboardCheck, CloudOff, LayoutDashboard, LogOut, Menu, Moon, QrCode, RefreshCw,
+  ArrowLeftRight, Boxes, ClipboardCheck, CloudOff, Inbox, LayoutDashboard, LogOut, Menu, Moon, QrCode, RefreshCw,
   ScanLine, Sun, TriangleAlert, Upload,
 } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { requestsService } from '@/services/api';
 import { Logo } from '@/components/brand/Brand';
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
 import { useAuth } from '@/lib/auth-context';
@@ -20,6 +22,7 @@ const NAV = [
   { to: '/conferir', label: 'Conferir', icon: ScanLine },
   { to: '/pendencias', label: 'Pendências', icon: TriangleAlert },
   { to: '/movimentacoes', label: 'Movimentações', icon: ArrowLeftRight },
+  { to: '/solicitacoes', label: 'Solicitações', icon: Inbox, roles: ['admin', 'gestor'] },
   { to: '/bens', label: 'Bens', icon: Boxes },
   { to: '/importar', label: 'Importar planilha', icon: Upload, roles: ['admin', 'gestor'] },
   { to: '/etiquetas', label: 'Etiquetas QR', icon: QrCode },
@@ -58,6 +61,14 @@ export const AppLayout: React.FC = () => {
   const navigate = useNavigate();
   const [open, setOpen] = React.useState(false);
 
+  const manager = can('admin', 'gestor');
+  const { data: openRequests = [] } = useQuery({
+    queryKey: ['requests', { status: 'abertas' }],
+    queryFn: () => requestsService.list({ status: 'abertas' }),
+    enabled: manager,
+    refetchInterval: 60_000,
+  });
+
   const items = NAV.filter(i => !('roles' in i) || can(...(i.roles as unknown as ('admin' | 'gestor')[])));
 
   const Sidebar = () => (
@@ -79,6 +90,9 @@ export const AppLayout: React.FC = () => {
               <>
                 <item.icon className={cn('h-[18px] w-[18px]', isActive && 'text-sidebar-primary')} />
                 {item.label}
+                {item.to === '/solicitacoes' && openRequests.length > 0 && (
+                  <span className="ml-auto rounded-full bg-sidebar-primary px-1.5 text-[10px] font-bold text-sidebar tabular">{openRequests.length}</span>
+                )}
                 {item.to === '/sincronizacao' && sync.counts.pending + sync.counts.failed > 0 && (
                   <span className="ml-auto rounded-full bg-sidebar-primary px-1.5 text-[10px] font-bold text-sidebar tabular">{sync.counts.pending + sync.counts.failed}</span>
                 )}

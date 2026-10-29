@@ -82,7 +82,7 @@ const Conferir: React.FC = () => {
         <p className="text-sm text-muted-foreground">Sem conexão — só os inventários já preparados neste aparelho estão disponíveis.</p>
       ) : isLoading ? <Spinner /> : notPrepared.length === 0 ? (
         snapshots.length === 0
-          ? <EmptyState icon={ScanLine} title="Nenhum inventário aberto" description="Um gestor precisa abrir o inventário da unidade primeiro." action={<Button asChild variant="outline"><Link to="/inventarios">Ver inventários</Link></Button>} />
+          ? <EmptyState icon={ScanLine} title="Nenhum inventário aberto" description="Um gerente precisa abrir o inventário da comarca ou do setor primeiro." action={<Button asChild variant="outline"><Link to="/inventarios">Ver inventários</Link></Button>} />
           : <p className="text-sm text-muted-foreground">Todos os inventários abertos já estão neste aparelho.</p>
       ) : (
         <div className="grid sm:grid-cols-2 gap-3">

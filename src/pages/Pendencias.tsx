@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import React, { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowRight, CheckCircle2, Loader2, TriangleAlert } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -9,6 +9,9 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { DiscrepancyBadge, EmptyState, EvidenceImage, Field, NativeSelect, PageHeader, Spinner } from '@/components/common';
 import { useDiscrepancies, useInventories, useMeta, useUnits } from '@/hooks/queries';
+import { useUrlFilters } from '@/hooks/useUrlFilters';
+import { FilterBar, type FilterChip } from '@/components/FilterBar';
+import { SectorOptions, sectorsOf } from '@/components/Sectors';
 import { discrepanciesService } from '@/services/api';
 import { useAuth } from '@/lib/auth-context';
 import { CONSERVATION, DISCREPANCY, DISCREPANCY_ACTION } from '@/lib/labels';
@@ -31,26 +34,40 @@ function Comparison({ d, unitName }: { d: Discrepancy; unitName: (id: string) =>
     </div>
   );
   switch (d.type) {
-    case 'localizacao_divergente': return row('Local', e.location, o.location);
-    case 'outra_unidade': return <>{row('Unidade', unitName(e.unit_id), unitName(o.unit_id))}{row('Local', e.location, o.location)}</>;
+    case 'localizacao_divergente': return row('Setor', e.location, o.location);
+    case 'outra_unidade': return <>{row('Comarca', unitName(e.unit_id), unitName(o.unit_id))}{row('Setor', e.location, o.location)}</>;
     case 'estado_alterado': return row('Estado', CONSERVATION[e.condition as keyof typeof CONSERVATION]?.label, CONSERVATION[o.condition as keyof typeof CONSERVATION]?.label);
     case 'responsavel_divergente': return row('Responsável', e.responsible_name, o.responsible_name);
     case 'nao_localizado': return <p className="text-sm">Previsto em <strong>{e.location || '—'}</strong>{e.responsible_name ? <> · responsável {e.responsible_name}</> : null}. Não foi encontrado até o encerramento.</p>;
     case 'nao_cadastrado': return <p className="text-sm">Encontrado em <strong>{o.location || '—'}</strong>{o.description ? <>: “{o.description}”</> : null}.</p>;
-    case 'conferencia_duplicada': return <>{row('Conferido por', e.checked_by_name, o.checked_by_name)}{row('Quando', fmtDateTime(e.checked_at), fmtDateTime(o.checked_at))}{row('Local', e.location, o.location)}</>;
+    case 'conferencia_duplicada': return <>{row('Conferido por', e.checked_by_name, o.checked_by_name)}{row('Quando', fmtDateTime(e.checked_at), fmtDateTime(o.checked_at))}{row('Setor', e.location, o.location)}</>;
     default: return null;
   }
 }
 
+// Filtros na URL — o painel abre direto em "?tipo=estado_alterado", por exemplo.
+const KEYS = ['situacao', 'tipo', 'comarca', 'setor', 'origem', 'inventario'] as const;
+type Key = typeof KEYS[number];
+const RESETS: Partial<Record<Key, Key[]>> = { comarca: ['setor'] };
+const ORIGIN: Record<string, string> = { inventario: 'Inventário', validacao: 'Validação do servidor' };
+
 const Pendencias: React.FC = () => {
-  const [params, setParams] = useSearchParams();
-  const inventoryId = params.get('inventario') || '';
-  const [status, setStatus] = useState<'aberta' | 'resolvida'>('aberta');
-  const [type, setType] = useState('');
+  const { values: f, set, clear } = useUrlFilters(KEYS, RESETS);
+  const inventoryId = f.inventario;
+  const status = (f.situacao || 'aberta') as 'aberta' | 'resolvida';
+  const type = f.tipo;
   const { data: inventories = [] } = useInventories();
   const { data: units = [] } = useUnits();
   const { data: meta } = useMeta();
-  const { data = [], isLoading } = useDiscrepancies({ inventory_id: inventoryId || undefined, status, type: type || undefined });
+  const { data = [], isLoading } = useDiscrepancies({
+    inventory_id: inventoryId || undefined,
+    status,
+    type: type || undefined,
+    unit_id: f.comarca || undefined,
+    location: f.setor || undefined,
+    source: f.origem || undefined,
+  });
+  const unit = units.find(u => u.id === f.comarca);
   const { can } = useAuth();
   const qc = useQueryClient();
   const navigate = useNavigate();
@@ -61,6 +78,19 @@ const Pendencias: React.FC = () => {
 
   const unitName = (id: string) => units.find(u => u.id === id)?.name || '—';
   const canDecide = can('admin', 'gestor');
+
+  // Trocar qualquer filtro desfaz a seleção em lote.
+  useEffect(() => { setSelected([]); }, [inventoryId, status, type, f.comarca, f.setor, f.origem]);
+
+  const label: Record<Key, (v: string) => string> = {
+    situacao: v => (v === 'resolvida' ? 'Resolvidas' : 'Abertas'),
+    tipo: v => DISCREPANCY[v as DiscrepancyType]?.label || v,
+    comarca: v => unitName(v),
+    setor: v => v,
+    origem: v => ORIGIN[v] || v,
+    inventario: v => inventories.find(i => i.id === v)?.number || 'Inventário',
+  };
+  const chips: FilterChip[] = KEYS.filter(k => f[k]).map(k => ({ key: k, label: label[k](f[k]), onRemove: () => set(k, '') }));
 
   const counts = useMemo(() => data.reduce<Record<string, number>>((acc, d) => ({ ...acc, [d.type]: (acc[d.type] || 0) + 1 }), {}), [data]);
 
@@ -100,22 +130,55 @@ const Pendencias: React.FC = () => {
     <div className="animate-fade-in">
       <PageHeader title="Pendências" subtitle="Divergências encontradas em campo. Nada muda no cadastro sem uma decisão registrada aqui." />
 
-      <div className="card-clay p-3 grid sm:grid-cols-3 gap-3 mb-4">
-        <NativeSelect value={inventoryId} onChange={e => { setSelected([]); setParams(e.target.value ? { inventario: e.target.value } : {}); }} aria-label="Inventário">
-          <option value="">Todos os inventários</option>
-          {inventories.map(i => <option key={i.id} value={i.id}>{i.number} — {i.name}</option>)}
-        </NativeSelect>
-        <NativeSelect value={type} onChange={e => { setType(e.target.value); setSelected([]); }} aria-label="Tipo">
-          <option value="">Todos os tipos</option>
-          {(Object.keys(DISCREPANCY) as DiscrepancyType[]).map(t => <option key={t} value={t}>{DISCREPANCY[t].label}{counts[t] ? ` (${counts[t]})` : ''}</option>)}
-        </NativeSelect>
-        <div className="flex rounded-xl border p-1 bg-muted">
-          {(['aberta', 'resolvida'] as const).map(s => (
-            <button key={s} onClick={() => { setStatus(s); setSelected([]); }} className={`flex-1 rounded-lg py-1.5 text-sm font-bold ${status === s ? 'bg-card shadow-card text-primary' : 'text-muted-foreground'}`}>
-              {s === 'aberta' ? 'Abertas' : 'Resolvidas'}
-            </button>
-          ))}
-        </div>
+      <div className="card-clay p-3 mb-4">
+        <FilterBar
+          primary={(
+            <>
+              <div className="flex rounded-xl border p-1 bg-muted md:w-56">
+                {(['aberta', 'resolvida'] as const).map(st => (
+                  <button key={st} onClick={() => set('situacao', st === 'aberta' ? '' : st)} className={`flex-1 rounded-lg py-1.5 text-sm font-bold ${status === st ? 'bg-card shadow-card text-primary' : 'text-muted-foreground'}`}>
+                    {st === 'aberta' ? 'Abertas' : 'Resolvidas'}
+                  </button>
+                ))}
+              </div>
+              <NativeSelect value={type} onChange={e => set('tipo', e.target.value)} aria-label="Tipo" className="md:w-60">
+                <option value="">Todos os tipos</option>
+                {(Object.keys(DISCREPANCY) as DiscrepancyType[]).map(t => <option key={t} value={t}>{DISCREPANCY[t].label}{counts[t] ? ` (${counts[t]})` : ''}</option>)}
+              </NativeSelect>
+            </>
+          )}
+          more={(
+            <>
+              <Field label="Comarca">
+                <NativeSelect value={f.comarca} onChange={e => set('comarca', e.target.value)}>
+                  <option value="">Todas as comarcas</option>
+                  {units.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                </NativeSelect>
+              </Field>
+              <Field label="Setor">
+                <NativeSelect value={f.setor} onChange={e => set('setor', e.target.value)} disabled={!unit}>
+                  <option value="">{unit ? 'Todos os setores' : 'Escolha a comarca'}</option>
+                  <SectorOptions sectors={sectorsOf(unit)} />
+                </NativeSelect>
+              </Field>
+              <Field label="Origem">
+                <NativeSelect value={f.origem} onChange={e => set('origem', e.target.value)}>
+                  <option value="">Inventário e validação</option>
+                  {Object.entries(ORIGIN).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                </NativeSelect>
+              </Field>
+              <Field label="Inventário">
+                <NativeSelect value={inventoryId} onChange={e => set('inventario', e.target.value)}>
+                  <option value="">Todos os inventários</option>
+                  {inventories.map(i => <option key={i.id} value={i.id}>{i.number} — {i.name}</option>)}
+                </NativeSelect>
+              </Field>
+            </>
+          )}
+          chips={chips.filter(c => c.key !== 'situacao')}
+          onClear={clear}
+          summary={<strong className="text-foreground tabular">{data.length} pendência(s)</strong>}
+        />
       </div>
 
       {selected.length > 0 && canDecide && (
@@ -178,7 +241,7 @@ const Pendencias: React.FC = () => {
             <DialogDescription>
               {pending?.action === 'atualizar_cadastro' && 'O cadastro central do bem passa a refletir o que foi encontrado em campo. A alteração fica no histórico do bem.'}
               {pending?.action === 'marcar_nao_localizado' && 'O bem passa à situação "não localizado" no cadastro.'}
-              {pending?.action === 'cadastrar_bem' && 'Um novo bem é criado com este tombamento, na unidade do inventário.'}
+              {pending?.action === 'cadastrar_bem' && 'Um novo bem é criado com este tombamento, na comarca do inventário.'}
               {pending?.action === 'usar_esta' && 'A conferência repetida passa a valer e a primeira vira duplicada.'}
               {pending && pending.ids.length > 1 && ` Aplicar a ${pending.ids.length} pendências.`}
             </DialogDescription>

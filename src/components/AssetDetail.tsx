@@ -20,7 +20,7 @@ export const AssetDetailBody: React.FC<{ data: Detail }> = ({ data }) => {
       <div className="flex flex-wrap gap-1.5"><AssetStatusBadge value={a.status} /><ConservationBadge value={a.conservationStatus} /></div>
       <dl className="grid grid-cols-2 gap-3 text-sm">
         {[
-          ['Unidade', unit?.name], ['Localização', a.location], ['Responsável', a.responsibleName], ['Categoria', a.category],
+          ['Comarca', unit?.name], ['Setor', a.location], ['Sala', a.room], ['Responsável', a.responsibleName], ['Categoria', a.category],
           ['Marca/modelo', a.brand], ['Nº de série', a.serialNumber], ['Aquisição', fmtDate(a.acquisitionDate)], ['Valor', fmtMoney(a.value)],
           ['Última conferência', fmtDateTime(a.lastCheckedAt)],
         ].map(([k, v]) => (

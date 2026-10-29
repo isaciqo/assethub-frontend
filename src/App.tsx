@@ -26,6 +26,7 @@ import Sincronizacao from '@/pages/Sincronizacao';
 import Verificar from '@/pages/Verificar';
 import NotFound from '@/pages/NotFound';
 import MinhaArea from '@/pages/MinhaArea';
+import Solicitacoes, { SolicitacaoDetalhe } from '@/pages/Solicitacoes';
 import { ServidorLayout } from '@/components/ServidorLayout';
 
 // Etiquetas carrega a lib de QR — só quando a tela for aberta.
@@ -90,6 +91,8 @@ const AppRoutes = () => {
         <Route path="/movimentacoes" element={<Movimentacoes />} />
         <Route path="/movimentacoes/nova" element={<NovaMovimentacao />} />
         <Route path="/movimentacoes/:id" element={<MovimentacaoDetalhe />} />
+        <Route path="/solicitacoes" element={<Solicitacoes />} />
+        <Route path="/solicitacoes/:id" element={<SolicitacaoDetalhe />} />
         <Route path="/bens" element={<Bens />} />
         <Route path="/b/:code" element={<BemPorCodigo />} />
         <Route path="/importar" element={<Importar />} />

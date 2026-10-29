@@ -2,6 +2,7 @@ import { http } from './http';
 import type {
   Asset, AssetDetail, AuthTokens, Dashboard, Discrepancy, DiscrepancyAction, ImportReport, Inventory, InventoryCheck,
   InventoryDetail, InventorySnapshot, Meta, Movement, MovementDetail, MyArea, Paged, PossessionCheck, Unit, User, VerifyResult,
+  AssetFacets, AssetRequest, AssetRequestDetail, CatalogItem,
 } from '@/types';
 
 // Um service por recurso, como no MEDagenda (src/services/*.service.ts),
@@ -28,12 +29,17 @@ export const usersService = {
   list: (params?: { role?: string; unit_id?: string }) => http.get<User[]>('/users', params),
 };
 
+// location = setor; checked = última conferência (em_dia | atrasada | nunca).
 export interface AssetFilters {
   unit_id?: string;
   location?: string;
+  room?: string;
   status?: string;
   category?: string;
+  brand?: string;
+  responsible_name?: string;
   conservation_status?: string;
+  checked?: string;
   search?: string;
   page?: string;
   pageSize?: string;
@@ -41,7 +47,7 @@ export interface AssetFilters {
 
 export const assetsService = {
   list: (filters: AssetFilters) => http.get<Paged<Asset>>('/assets', filters as Record<string, string>),
-  facets: (unit_id?: string) => http.get<{ categories: string[]; locations: string[]; responsibles: string[] }>('/assets/facets', { unit_id }),
+  facets: (unit_id?: string, location?: string) => http.get<AssetFacets>('/assets/facets', { unit_id, location }),
   detail: (id: string) => http.get<AssetDetail>(`/assets/${id}`),
   byCode: (code: string) => http.get<AssetDetail>(`/assets/by-code/${encodeURIComponent(code)}`),
   create: (data: Record<string, unknown>) => http.post<Asset>('/assets', data),
@@ -65,15 +71,23 @@ export const inventoriesService = {
   complete: (id: string) => http.post<Inventory>(`/inventories/${id}/complete`),
 };
 
+export interface DiscrepancyFilters {
+  inventory_id?: string; unit_id?: string; location?: string; status?: string; type?: string; source?: string;
+}
+
+export interface MovementFilters {
+  status?: string; scope?: string; type?: string; unit_id?: string; location?: string; person_id?: string; from?: string; to?: string;
+}
+
 export const discrepanciesService = {
-  list: (params: { inventory_id?: string; unit_id?: string; status?: string; type?: string }) => http.get<Discrepancy[]>('/discrepancies', params),
+  list: (params: DiscrepancyFilters) => http.get<Discrepancy[]>('/discrepancies', params as Record<string, string>),
   resolve: (id: string, body: { action: DiscrepancyAction; note?: string; data?: Record<string, string> }) => http.post<Discrepancy>(`/discrepancies/${id}/resolve`, body),
   bulkResolve: (body: { ids: string[]; action: DiscrepancyAction; note?: string }) =>
     http.post<{ resolved: number; failed: { id: string; message: string }[] }>('/discrepancies/bulk-resolve', body),
 };
 
 export const movementsService = {
-  list: (params?: { status?: string; scope?: string }) => http.get<Movement[]>('/movements', params),
+  list: (params?: MovementFilters) => http.get<Movement[]>('/movements', params as Record<string, string>),
   detail: (id: string) => http.get<MovementDetail>(`/movements/${id}`),
   create: (data: Record<string, unknown>) => http.post<Movement>('/movements', data),
   decide: (id: string, decision: 'aprovada' | 'rejeitada', note: string) => http.post<Movement>(`/movements/${id}/approval`, { decision, note }),
@@ -94,4 +108,16 @@ export const possessionService = {
   list: () => http.get<PossessionCheck[]>('/possession-checks'),
   request: (userIds: string[]) =>
     http.post<{ created: PossessionCheck[]; skipped: { name: string; reason: string }[] }>('/possession-checks', { user_ids: userIds }),
+};
+
+export const requestsService = {
+  catalog: () => http.get<CatalogItem[]>('/requests/catalog'),
+  list: (params?: { status?: string; unit_id?: string; urgency?: string; mine?: string }) => http.get<(AssetRequest & { unitName: string })[]>('/requests', params),
+  detail: (id: string) => http.get<AssetRequestDetail>(`/requests/${id}`),
+  create: (data: Record<string, unknown>) => http.post<AssetRequest>('/requests', data),
+  suggestions: (id: string) => http.get<(Asset & { unitName: string })[]>(`/requests/${id}/suggestions`),
+  fulfill: (id: string, body: { asset_ids: string[]; deliverer_id?: string; note?: string }) => http.post<AssetRequest>(`/requests/${id}/fulfill`, body),
+  purchase: (id: string, purchase_justification: string) => http.post<AssetRequest>(`/requests/${id}/purchase`, { purchase_justification }),
+  reject: (id: string, reason: string) => http.post<AssetRequest>(`/requests/${id}/reject`, { reason }),
+  cancel: (id: string) => http.post<AssetRequest>(`/requests/${id}/cancel`),
 };

@@ -123,7 +123,7 @@ export const PedirEnvioDialog: React.FC<{ open: boolean; onOpenChange: (o: boole
               {users.filter(u => u.id !== sender).map(u => <option key={u.id} value={u.id}>{u.name} · {ROLE_LABEL[u.role]}</option>)}
             </NativeSelect>
           </Field>
-          <Field label="Sala de destino">
+          <Field label="Setor de destino">
             <NativeSelect value={location} onChange={e => setLocation(e.target.value)} disabled={!asset}>
               {[...new Set([asset?.location || '', ...locations])].filter(Boolean).map(l => <option key={l} value={l}>{l}</option>)}
             </NativeSelect>

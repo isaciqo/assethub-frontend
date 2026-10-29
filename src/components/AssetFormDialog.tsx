@@ -14,7 +14,7 @@ import { toast } from '@/components/ui/sonner';
 import type { ApiError, Asset, Conservation } from '@/types';
 
 // Cadastro avulso (chegada de um bem novo) e ajuste administrativo de um bem
-// existente — estado, local, responsável e baixa. Toda alteração vira evento
+// existente — estado, setor, sala, responsável e baixa. Toda alteração vira evento
 // na linha do tempo do bem (backend: UpdateAssetOperation).
 interface Props {
   open: boolean;
@@ -24,7 +24,7 @@ interface Props {
 }
 
 const empty = {
-  code: '', description: '', category: '', brand: '', serial_number: '', unit_id: '', location: '',
+  code: '', description: '', category: '', brand: '', serial_number: '', unit_id: '', location: '', room: '',
   responsible_name: '', conservation_status: 'novo' as Conservation, status: 'ativo', value: '', notes: '',
 };
 
@@ -34,12 +34,13 @@ export const AssetFormDialog: React.FC<Props> = ({ open, onOpenChange, asset, on
   const { data: units = [] } = useUnits();
   const [f, setF] = useState(empty);
   const { data: facets } = useFacets(f.unit_id || undefined);
+  const { data: sectorFacets } = useFacets(f.unit_id || undefined, f.location || undefined);
 
   useEffect(() => {
     if (!open) return;
     setF(asset ? {
       code: asset.code, description: asset.description, category: asset.category, brand: asset.brand,
-      serial_number: asset.serialNumber, unit_id: asset.unitId, location: asset.location,
+      serial_number: asset.serialNumber, unit_id: asset.unitId, location: asset.location, room: asset.room || '',
       responsible_name: asset.responsibleName, conservation_status: asset.conservationStatus,
       status: asset.status, value: asset.value != null ? String(asset.value) : '', notes: asset.notes,
     } : empty);
@@ -53,7 +54,7 @@ export const AssetFormDialog: React.FC<Props> = ({ open, onOpenChange, asset, on
       const value = f.value.trim() ? Number(f.value.replace(/\./g, '').replace(',', '.')) : null;
       const common = {
         description: f.description, category: f.category, brand: f.brand, serial_number: f.serial_number,
-        location: f.location, responsible_name: f.responsible_name, conservation_status: f.conservation_status,
+        location: f.location, room: f.room, responsible_name: f.responsible_name, conservation_status: f.conservation_status,
         value, notes: f.notes,
       };
       return editing
@@ -92,8 +93,8 @@ export const AssetFormDialog: React.FC<Props> = ({ open, onOpenChange, asset, on
           {!editing && (
             <>
               <Field label="Tombamento *" htmlFor="af-code"><Input id="af-code" value={f.code} onChange={e => set({ code: e.target.value })} placeholder="Ex.: 0100950" /></Field>
-              <Field label="Unidade *" htmlFor="af-unit">
-                <NativeSelect id="af-unit" value={f.unit_id} onChange={e => set({ unit_id: e.target.value })}>
+              <Field label="Comarca *" htmlFor="af-unit">
+                <NativeSelect id="af-unit" value={f.unit_id} onChange={e => set({ unit_id: e.target.value, location: '', room: '' })}>
                   <option value="">Selecione…</option>
                   {units.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
                 </NativeSelect>
@@ -108,9 +109,13 @@ export const AssetFormDialog: React.FC<Props> = ({ open, onOpenChange, asset, on
           <Field label="Marca/modelo" htmlFor="af-brand"><Input id="af-brand" value={f.brand} onChange={e => set({ brand: e.target.value })} /></Field>
           <Field label="Nº de série" htmlFor="af-serial"><Input id="af-serial" value={f.serial_number} onChange={e => set({ serial_number: e.target.value })} /></Field>
           <Field label="Valor (R$)" htmlFor="af-value"><Input id="af-value" inputMode="decimal" value={f.value} onChange={e => set({ value: e.target.value })} placeholder="1.890,00" /></Field>
-          <Field label="Localização" htmlFor="af-loc">
-            <Input id="af-loc" list="af-locs" value={f.location} onChange={e => set({ location: e.target.value })} />
+          <Field label="Setor" htmlFor="af-loc" hint="Vara, gabinete, secretaria…">
+            <Input id="af-loc" list="af-locs" value={f.location} onChange={e => set({ location: e.target.value })} placeholder="Ex.: 1ª Vara Cível" />
             <datalist id="af-locs">{unitLocations.map(l => <option key={l} value={l} />)}</datalist>
+          </Field>
+          <Field label="Sala (opcional)" htmlFor="af-room">
+            <Input id="af-room" list="af-rooms" value={f.room} onChange={e => set({ room: e.target.value })} placeholder="Ex.: Sala de Audiências" />
+            <datalist id="af-rooms">{sectorFacets?.rooms.map(r => <option key={r} value={r} />)}</datalist>
           </Field>
           <Field label="Responsável" htmlFor="af-resp">
             <Input id="af-resp" list="af-resps" value={f.responsible_name} onChange={e => set({ responsible_name: e.target.value })} />
