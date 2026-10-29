@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
-  ArrowLeft, Camera, CameraOff, Check, CloudOff, Keyboard, Loader2, MapPin, PackageSearch, RefreshCw, Search, Zap, ListChecks,
+  ArrowLeft, Camera, CameraOff, Check, CloudOff, Keyboard, Loader2, Lock, MapPin, PackageSearch, RefreshCw, Search, Zap, ListChecks,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,7 +23,7 @@ import { CHECK_METHOD, CHECK_STATUS, CONSERVATION, CONSERVATION_ORDER } from '@/
 import { cn } from '@/lib/utils';
 import { useGeoWatch } from '@/lib/geo';
 import { toast } from '@/components/ui/sonner';
-import type { CheckMethod, Conservation, SnapshotAsset } from '@/types';
+import type { ApiError, CheckMethod, Conservation, SnapshotAsset } from '@/types';
 
 type Mode = 'rapida' | 'detalhada';
 
@@ -66,19 +66,26 @@ const Conferencia: React.FC = () => {
   const [draft, setDraft] = useState<Draft | null>(null);
   const [query, setQuery] = useState('');
   const [preparing, setPreparing] = useState(false);
+  const [closed, setClosed] = useState(false);
   const lastAt = useRef(Date.now());
   const gps = useGeoWatch();
 
   useEffect(() => { localStorage.setItem('assethub_scan_mode', mode); }, [mode]);
   useEffect(() => { localStorage.setItem(`assethub_room_${inventoryId}`, room); lastAt.current = Date.now(); }, [room, inventoryId]);
 
-  // Com internet, atualiza o pacote a cada minuto: o que os colegas conferiram
-  // em outros aparelhos aparece aqui como "já conferido".
+  // Com internet, atualiza o pacote ao abrir e a cada minuto: o que os colegas
+  // conferiram em outros aparelhos aparece aqui como "já conferido". Se o
+  // inventário foi encerrado, o pacote guardado no aparelho está velho e não
+  // pode mais ser usado para conferir.
+  const hasSnapshot = !!snapshot;
   useEffect(() => {
-    if (!online || !inventoryId || !snapshot) return undefined;
-    const t = setInterval(() => { prepareOffline(inventoryId, user?.name || '').then(reload).catch(() => {}); }, 60_000);
+    if (!online || !inventoryId || !hasSnapshot) return undefined;
+    const refresh = () => prepareOffline(inventoryId, user?.name || '').then(reload)
+      .catch((e: ApiError) => { if (e?.statusCode === 409) setClosed(true); });
+    refresh();
+    const t = setInterval(refresh, 60_000);
     return () => clearInterval(t);
-  }, [online, inventoryId, snapshot, user?.name, reload]);
+  }, [online, inventoryId, hasSnapshot, user?.name, reload]);
 
   const byCode = useMemo(() => new Map((snapshot?.assets || []).map(a => [a.codeNormalized, a])), [snapshot]);
   const byId = useMemo(() => new Map((snapshot?.assets || []).map(a => [a.id, a])), [snapshot]);
@@ -256,6 +263,19 @@ const Conferencia: React.FC = () => {
   }
 
   const pendingHere = ops.filter(o => o.status !== 'SYNCED').length;
+
+  if (closed) {
+    return (
+      <EmptyState
+        icon={Lock}
+        title={`${snapshot.inventory.number} foi encerrado`}
+        description={pendingHere
+          ? `Este aparelho ainda tem ${pendingHere} conferência(s) para enviar. Sincronize e depois escolha o inventário aberto.`
+          : 'A lista guardada neste aparelho é antiga. Volte e escolha o inventário que está aberto.'}
+        action={<Button asChild><Link to="/conferir"><ArrowLeft /> Escolher inventário aberto</Link></Button>}
+      />
+    );
+  }
 
   return (
     <div className="animate-fade-in space-y-4">

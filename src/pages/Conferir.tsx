@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { CloudDownload, Loader2, ScanLine, Smartphone, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -45,6 +45,23 @@ const Conferir: React.FC = () => {
     reload();
   };
 
+  // Inventário preparado aqui que não está mais aberto no servidor foi
+  // encerrado: a lista guardada é antiga. Sem conferências a enviar, sai do
+  // aparelho; com conferências pendentes, fica só para sincronizar.
+  const isClosed = (id: string) => online && !!open && !open.some(i => i.id === id);
+  useEffect(() => {
+    if (!online || !open) return;
+    const stale = snapshots.filter(s => !open.some(i => i.id === s.inventory.id));
+    if (!stale.length) return;
+    Promise.all(stale.map(async s => {
+      const ops = await offlineDb.listOps(s.inventory.id);
+      if (ops.some(o => o.status !== 'SYNCED')) return false;
+      await offlineDb.clearSynced(s.inventory.id);
+      await offlineDb.deleteSnapshot(s.inventory.id);
+      return true;
+    })).then(r => { if (r.some(Boolean)) reload(); });
+  }, [online, open, snapshots, reload]);
+
   const notPrepared = (open || []).filter(i => !snapshots.some(s => s.inventory.id === i.id));
 
   return (
@@ -55,7 +72,7 @@ const Conferir: React.FC = () => {
       {snapshots.length === 0 ? (
         <p className="text-sm text-muted-foreground mb-8">Nenhum inventário preparado ainda.</p>
       ) : (
-        <div className="grid sm:grid-cols-2 gap-3 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-8">
           {snapshots.map(s => {
             const checked = s.serverChecks.length;
             const pct = s.assets.length ? Math.round((checked / s.assets.length) * 100) : 0;
@@ -65,10 +82,12 @@ const Conferir: React.FC = () => {
                 <div className="min-w-0 flex-1">
                   <div className="text-[11px] font-bold text-urucum">{s.inventory.number}</div>
                   <div className="font-semibold leading-tight truncate">{s.inventory.name}</div>
-                  <div className="text-xs text-muted-foreground">{s.unit.name} · preparado {fmtRelative(s.preparedAt)}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {isClosed(s.inventory.id) ? 'Encerrado · sincronize as conferências pendentes' : `${s.unit.name} · preparado ${fmtRelative(s.preparedAt)}`}
+                  </div>
                 </div>
-                <div className="flex flex-col gap-1.5">
-                  <Button asChild variant="urucum" size="sm"><Link to={`/conferir/${s.inventory.id}`}><ScanLine /> Conferir</Link></Button>
+                <div className="flex flex-col gap-1.5 shrink-0">
+                  {!isClosed(s.inventory.id) && <Button asChild variant="urucum" size="sm"><Link to={`/conferir/${s.inventory.id}`}><ScanLine /> Conferir</Link></Button>}
                   <Button size="sm" variant="ghost" onClick={() => remove(s.inventory.id)} aria-label="Remover do aparelho"><Trash2 /></Button>
                 </div>
               </div>
@@ -85,7 +104,7 @@ const Conferir: React.FC = () => {
           ? <EmptyState icon={ScanLine} title="Nenhum inventário aberto" description="Um gerente precisa abrir o inventário da comarca ou do setor primeiro." action={<Button asChild variant="outline"><Link to="/inventarios">Ver inventários</Link></Button>} />
           : <p className="text-sm text-muted-foreground">Todos os inventários abertos já estão neste aparelho.</p>
       ) : (
-        <div className="grid sm:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {notPrepared.map(inv => (
             <div key={inv.id} className="card-clay p-4 flex items-center justify-between gap-3">
               <div className="min-w-0">
@@ -93,7 +112,7 @@ const Conferir: React.FC = () => {
                 <div className="font-semibold leading-tight truncate">{inv.name}</div>
                 <div className="text-xs text-muted-foreground tabular">{inv.summary?.checked}/{inv.summary?.expected} conferidos</div>
               </div>
-              <Button onClick={() => prepare(inv.id)} disabled={busy === inv.id}>
+              <Button className="shrink-0" onClick={() => prepare(inv.id)} disabled={busy === inv.id}>
                 {busy === inv.id ? <Loader2 className="animate-spin" /> : <CloudDownload />} Preparar
               </Button>
             </div>
