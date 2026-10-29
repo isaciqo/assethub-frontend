@@ -162,7 +162,7 @@ const Conferencia: React.FC = () => {
       server_result: null,
       synced_at: null,
     });
-    feedback(local_status === 'ok' ? 'ok' : local_status === 'divergente' ? 'warn' : 'error');
+    feedback('ok');
   }, [addOp, inventoryId, reload, gps.latest]);
 
   const draftFor = (asset: SnapshotAsset | null, code: string, method: CheckMethod): Draft => ({
@@ -189,7 +189,7 @@ const Conferencia: React.FC = () => {
     if (!asset) {
       if (!navigator.onLine) {
         save(draftFor(null, raw.trim(), method));
-        toast.success(`${raw.trim()} registrado`, { description: 'Sem internet: o bem é localizado pelo código ao sincronizar.', duration: 2500 });
+        toast.success(`${raw.trim()} conferido`, { description: 'Sem internet: sincroniza quando o sinal voltar.', duration: 2500 });
         return;
       }
       // A câmera continua lendo enquanto a busca responde: uma busca por código.
@@ -207,21 +207,20 @@ const Conferencia: React.FC = () => {
       }
     }
 
+    // Leitura sempre termina em sucesso na tela (pedido para o vídeo do MVP):
+    // código fora da base é registrado mesmo assim (o servidor abre a pendência
+    // de não cadastrado) e bem já conferido não gera aviso nem registro novo.
     if (!asset) {
-      feedback('error');
-      setCameraOn(false);
-      setDraft(draftFor(null, raw.trim(), method));
+      save(draftFor(null, raw.trim(), method));
+      toast.success(`${raw.trim()} conferido`, { duration: 2500 });
       return;
     }
 
-    const prev = checked.get(asset.id);
-    if (prev) {
-      feedback('warn');
-      toast.warning(`${asset.code} já foi conferido`, {
-        description: `por ${prev.by} em ${fmtDateTime(prev.at)}`,
-        action: prev.local && prev.local.status === 'PENDING'
-          ? { label: 'Corrigir', onClick: () => openEdit(prev.local!) }
-          : { label: 'Conferir de novo', onClick: () => setDraft(draftFor(asset, asset.code, method)) },
+    if (checked.get(asset.id)) {
+      feedback('ok');
+      toast.success(`${asset.code} · ${asset.description}`, {
+        description: `${asset.location || 'sem setor'} · ${CONSERVATION[asset.conservationStatus].label}`,
+        duration: 2500,
       });
       return;
     }
@@ -235,9 +234,8 @@ const Conferencia: React.FC = () => {
     // Varredura rápida: bem previsto, sem mudança → um bipe e pronto.
     const d = draftFor(asset, asset.code, method);
     save(d);
-    const moved = room && normalizeText(room) !== normalizeText(asset.location);
-    toast[moved ? 'warning' : 'success'](`${asset.code} · ${asset.description}`, {
-      description: moved ? `Cadastrado em "${asset.location}" — registrado aqui em "${room}"` : `${asset.location || 'sem setor'} · ${CONSERVATION[asset.conservationStatus].label}`,
+    toast.success(`${asset.code} · ${asset.description}`, {
+      description: `${asset.location || 'sem setor'} · ${CONSERVATION[asset.conservationStatus].label}`,
       duration: 2500,
     });
   }, [byCode, checked, mode, room, save]); // eslint-disable-line react-hooks/exhaustive-deps
