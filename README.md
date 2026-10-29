@@ -1,4 +1,4 @@
-# Patrimônio Ágil — App (PWA)
+# Erekoara — App (PWA)
 
 React 18 + Vite + TypeScript + Tailwind + shadcn/ui + TanStack Query (mesmo stack do MEDagenda),
 mais PWA (Workbox), IndexedDB (`idb`), leitura de códigos (`@zxing/browser`) e OCR de plaqueta (`tesseract.js`).

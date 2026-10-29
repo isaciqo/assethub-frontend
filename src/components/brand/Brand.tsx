@@ -17,7 +17,7 @@ export const Logo: React.FC<{ className?: string; size?: number; subtitle?: bool
     <LogoMark size={size} />
     <div className="leading-none">
       <div className={cn('font-display font-bold text-[1.05rem] tracking-tight', light ? 'text-sidebar-foreground' : 'text-foreground')}>
-        Patrimônio <span className="text-urucum">Ágil</span>
+        Erekoara
       </div>
       {subtitle && (
         <div className={cn('text-[10px] font-semibold uppercase tracking-[0.18em] mt-1', light ? 'text-sidebar-foreground/50' : 'text-muted-foreground')}>

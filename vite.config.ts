@@ -20,8 +20,8 @@ export default defineConfig({
       injectRegister: "auto",
       includeAssets: ["favicon.svg", "icon-192.png", "icon-512.png", "apple-touch-icon.png"],
       manifest: {
-        name: "Patrimônio Ágil — TJPA",
-        short_name: "Patrimônio Ágil",
+        name: "Erekoara — TJPA",
+        short_name: "Erekoara",
         description: "Inventário patrimonial digital, offline e rastreável.",
         lang: "pt-BR",
         start_url: "/",
