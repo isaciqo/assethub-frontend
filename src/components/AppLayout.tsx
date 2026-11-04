@@ -25,7 +25,7 @@ const NAV = [
   { to: '/solicitacoes', label: 'Solicitações', icon: Inbox },
   { to: '/bens', label: 'Bens', icon: Boxes },
   { to: '/importar', label: 'Importar planilha', icon: Upload, roles: ['admin', 'gestor'] },
-  { to: '/etiquetas', label: 'Etiquetas QR', icon: QrCode },
+  { to: '/etiquetas', label: 'Etiquetas', icon: QrCode },
   { to: '/sincronizacao', label: 'Sincronização', icon: RefreshCw },
 ] as const;
 

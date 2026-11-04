@@ -1,17 +1,50 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import QRCode from 'qrcode';
-import { Printer, QrCode } from 'lucide-react';
+import JsBarcode from 'jsbarcode';
+import { Printer, Tag } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { EmptyState, NativeSelect, PageHeader, Spinner } from '@/components/common';
 import { LogoMark } from '@/components/brand/Brand';
 import { useAssets, useFacets, useUnits } from '@/hooks/queries';
 import type { Asset } from '@/types';
 
-// Etiquetas QR para colar nos bens. O QR carrega a URL /b/<tombamento>:
-// o app lê só o tombamento, e qualquer câmera de celular abre a ficha do bem.
-// Plaquetas antigas sem QR continuam legíveis pela leitura de plaqueta (OCR).
-const Label: React.FC<{ asset: Asset; unitName: string }> = ({ asset, unitName }) => {
+type Modelo = 'tjpa' | 'qr';
+const MODEL_KEY = 'assethub_label_model';
+
+// Modelo TJPA: o mesmo das plaquetas de patrimônio do Tribunal — brasão,
+// "Tribunal de Justiça do Estado do Pará / Patrimônio", código de barras
+// Code 39 (o das plaquetas reais, que a câmera do app lê) e o tombamento embaixo.
+const LabelTjpa: React.FC<{ asset: Asset }> = ({ asset }) => {
+  const svg = useRef<SVGSVGElement>(null);
+  useEffect(() => {
+    if (!svg.current) return;
+    // margin = zona de silêncio: sem ela, nenhum leitor reconhece o código.
+    const opts = { displayValue: false, margin: 12, height: 40, width: 2, background: 'transparent', lineColor: '#111111' };
+    try {
+      JsBarcode(svg.current, asset.code.toUpperCase(), { ...opts, format: 'CODE39' });
+    } catch {
+      // Tombamento com caractere que o Code 39 não aceita.
+      JsBarcode(svg.current, asset.code, { ...opts, format: 'CODE128' });
+    }
+  }, [asset.code]);
+  return (
+    <div className="label-card break-inside-avoid rounded-[3px] border border-[#b9c0c6] p-2 pr-3 flex items-center gap-2 text-[#1c1c1c]"
+      style={{ background: 'linear-gradient(160deg, #f4f6f7 0%, #dfe4e8 55%, #eef1f3 100%)', fontFamily: '"Arial Narrow", Arial, sans-serif' }}>
+      <img src="/brasao-tjpa.png" alt="Brasão do TJPA" className="h-[74px] w-[74px] shrink-0 object-contain" />
+      <div className="min-w-0 flex-1 flex flex-col items-center">
+        <div className="font-bold text-[10.5px] leading-tight whitespace-nowrap tracking-[-0.01em]">Tribunal de Justiça do Estado do Pará</div>
+        <div className="font-bold text-[10.5px] leading-tight">Patrimônio</div>
+        <svg ref={svg} className="mt-1 h-[38px] w-full" preserveAspectRatio="none" aria-label={`Código de barras ${asset.code}`} />
+        <div className="font-bold text-[17px] leading-none mt-1 tracking-wide tabular">{asset.code}</div>
+      </div>
+    </div>
+  );
+};
+
+// Modelo QR: a URL /b/<tombamento> — o app lê só o tombamento, e qualquer
+// câmera de celular abre a ficha do bem.
+const LabelQr: React.FC<{ asset: Asset; unitName: string }> = ({ asset, unitName }) => {
   const [src, setSrc] = useState('');
   useEffect(() => {
     const url = `${window.location.origin}/b/${encodeURIComponent(asset.code)}`;
@@ -35,6 +68,8 @@ const Etiquetas: React.FC = () => {
   const { data: units = [] } = useUnits();
   const [unitId, setUnitId] = useState(params.get('unit') || '');
   const [location, setLocation] = useState('');
+  const [modelo, setModelo] = useState<Modelo>(() => { try { return (localStorage.getItem(MODEL_KEY) as Modelo) || 'tjpa'; } catch { return 'tjpa'; } });
+  useEffect(() => { try { localStorage.setItem(MODEL_KEY, modelo); } catch { /* sem armazenamento: só não lembra a escolha */ } }, [modelo]);
   const codes = params.get('codes') || '';
   const { data: facets } = useFacets(unitId || undefined);
   const { data, isLoading } = useAssets({ unit_id: unitId || undefined, location: location || undefined, search: codes || undefined, pageSize: '300' });
@@ -42,29 +77,39 @@ const Etiquetas: React.FC = () => {
 
   return (
     <div className="animate-fade-in">
-      <style>{`@media print { @page { size: A4; margin: 10mm; } aside, header, nav { display: none !important; } main { padding: 0 !important; max-width: none !important; } .labels-grid { grid-template-columns: repeat(3, 1fr) !important; gap: 4mm !important; } }`}</style>
+      <style>{`@media print { @page { size: A4; margin: 10mm; } aside, header, nav { display: none !important; } main { padding: 0 !important; max-width: none !important; } .labels-grid { grid-template-columns: repeat(3, 1fr) !important; gap: 4mm !important; } .label-card { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }`}</style>
+      <div className="no-print">
       <PageHeader
-        title="Etiquetas QR"
-        subtitle="Imprima em papel adesivo (A4, 3 colunas) e cole nos bens. Uma etiqueta acelera cada conferência futura."
+        title="Etiquetas"
+        subtitle="Imprima em papel adesivo (A4, 3 colunas) e cole nos bens. A câmera do app lê o código de barras e o QR."
         actions={<Button onClick={() => window.print()} disabled={!data?.items.length}><Printer /> Imprimir {data?.items.length || 0}</Button>}
       />
-      {!codes && (
-        <div className="card-clay p-3 grid sm:grid-cols-2 gap-3 mb-4 no-print">
-          <NativeSelect value={unitId} onChange={e => { setUnitId(e.target.value); setLocation(''); }} aria-label="Unidade">
-            <option value="">Escolha a comarca…</option>
-            {units.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
-          </NativeSelect>
-          <NativeSelect value={location} onChange={e => setLocation(e.target.value)} disabled={!unitId} aria-label="Sala">
-            <option value="">Todos os setores</option>
-            {facets?.locations.map(l => <option key={l} value={l}>{l}</option>)}
-          </NativeSelect>
-        </div>
-      )}
+      </div>
+      <div className="card-clay p-3 grid sm:grid-cols-3 gap-3 mb-4 no-print">
+        {!codes && (
+          <>
+            <NativeSelect value={unitId} onChange={e => { setUnitId(e.target.value); setLocation(''); }} aria-label="Unidade">
+              <option value="">Escolha a comarca…</option>
+              {units.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+            </NativeSelect>
+            <NativeSelect value={location} onChange={e => setLocation(e.target.value)} disabled={!unitId} aria-label="Setor">
+              <option value="">Todos os setores</option>
+              {facets?.locations.map(l => <option key={l} value={l}>{l}</option>)}
+            </NativeSelect>
+          </>
+        )}
+        <NativeSelect value={modelo} onChange={e => setModelo(e.target.value as Modelo)} aria-label="Modelo da etiqueta">
+          <option value="tjpa">Modelo TJPA (código de barras)</option>
+          <option value="qr">QR Code (abre a ficha no celular)</option>
+        </NativeSelect>
+      </div>
       {!unitId && !codes ? (
-        <EmptyState icon={QrCode} title="Escolha uma comarca" description="As etiquetas são geradas para os bens da comarca (ou de um setor)." />
+        <EmptyState icon={Tag} title="Escolha uma comarca" description="As etiquetas são geradas para os bens da comarca (ou de um setor)." />
       ) : isLoading ? <Spinner /> : (
         <div className="labels-grid grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {data?.items.map(a => <Label key={a.id} asset={a} unitName={unitName[a.unitId] || ''} />)}
+          {data?.items.map(a => (modelo === 'tjpa'
+            ? <LabelTjpa key={a.id} asset={a} />
+            : <LabelQr key={a.id} asset={a} unitName={unitName[a.unitId] || ''} />))}
         </div>
       )}
     </div>
