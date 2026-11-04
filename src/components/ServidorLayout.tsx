@@ -1,13 +1,18 @@
 import React from 'react';
-import { Outlet, useNavigate } from 'react-router-dom';
-import { LogOut, Moon, Sun } from 'lucide-react';
+import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { Home, Inbox, LogOut, Moon, Sun } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { Logo } from '@/components/brand/Brand';
 import { useAuth } from '@/lib/auth-context';
 import { useTheme } from '@/lib/theme';
 import { initials } from '@/lib/format';
 import { ROLE_LABEL } from '@/lib/labels';
 
-// Casca do perfil servidor: sem menu lateral — a pessoa só tem uma tela.
+// Casca do perfil servidor: só duas telas, a Minha área e as Solicitações.
+const LINKS = [
+  { to: '/minha-area', label: 'Minha área', icon: Home },
+  { to: '/solicitacoes', label: 'Solicitações', icon: Inbox },
+];
 export const ServidorLayout: React.FC = () => {
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
@@ -37,6 +42,14 @@ export const ServidorLayout: React.FC = () => {
             </button>
           </div>
         </div>
+        <nav className="max-w-3xl mx-auto px-4 pb-2 flex gap-1" aria-label="Telas">
+          {LINKS.map(l => (
+            <NavLink key={l.to} to={l.to}
+              className={({ isActive }) => cn('flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-sm font-bold', isActive ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-accent')}>
+              <l.icon className="h-4 w-4" /> {l.label}
+            </NavLink>
+          ))}
+        </nav>
       </header>
       <main className="max-w-3xl mx-auto px-4 py-6 pb-16">
         <Outlet />

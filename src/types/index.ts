@@ -34,7 +34,7 @@ export interface GeoRecord {
 
 // Estrutura do Tribunal: Comarca (Unit) → Setor (vara, gabinete…) → Sala.
 export type SectorKind = 'vara' | 'gabinete' | 'juizado' | 'secretaria' | 'coordenadoria' | 'almoxarifado' | 'outro';
-export interface Sector { name: string; kind: SectorKind }
+export interface Sector { name: string; kind: SectorKind; ownerId?: string | null; ownerName?: string }
 
 export interface Unit {
   id: string;
@@ -378,7 +378,10 @@ export type MyTask =
     destinationLocation: string;
     createdAt: string;
   }
-  | { kind: 'validar'; check: PossessionCheck; createdAt: string };
+  | { kind: 'validar'; check: PossessionCheck; createdAt: string }
+  | { kind: 'pedido_setor' | 'pedido_negado'; request: AssetRequest; createdAt: string };
+
+export interface RequestSource { unitId: string; unitName: string; sectors: Sector[] }
 
 export interface MyArea {
   assets: Asset[];
@@ -387,7 +390,7 @@ export interface MyArea {
 
 export interface AssetFacets { categories: string[]; locations: string[]; rooms: string[]; brands: string[]; responsibles: string[] }
 
-export type RequestStatus = 'aberta' | 'em_analise' | 'em_atendimento' | 'atendida' | 'encaminhada_compra' | 'recusada' | 'cancelada';
+export type RequestStatus = 'aguardando_setor' | 'negada_setor' | 'aberta' | 'em_analise' | 'em_atendimento' | 'atendida' | 'encaminhada_compra' | 'recusada' | 'cancelada';
 
 // Solicitação de bem (o "ofício" do setor).
 export interface AssetRequest {
@@ -399,6 +402,9 @@ export interface AssetRequest {
   unitName?: string;
   sector: string;
   room: string;
+  // Setor a quem a pessoa pediu (com o responsável que responde).
+  source: { unitId: string; sector: string; ownerId: string | null; ownerName: string } | null;
+  sourceUnitName?: string;
   item: string;
   category: string;
   quantity: number;

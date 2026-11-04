@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { CircleCheck, ClipboardCheck, Loader2, MapPin, PackageCheck, PackagePlus, Send, ThumbsDown, ThumbsUp } from 'lucide-react';
+import { CircleCheck, ClipboardCheck, Inbox, Loader2, MapPin, PackageCheck, PackagePlus, Send, ShoppingCart, ThumbsDown, ThumbsUp } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -18,6 +19,7 @@ import { toast } from '@/components/ui/sonner';
 import type { ApiError, MyTask, PossessionCheck } from '@/types';
 
 type HandoverTask = Extract<MyTask, { kind: 'enviar' | 'receber' }>;
+type RequestTask = Extract<MyTask, { kind: 'pedido_setor' | 'pedido_negado' }>;
 
 const MinhaArea: React.FC = () => {
   const { user } = useAuth();
@@ -25,6 +27,7 @@ const MinhaArea: React.FC = () => {
   const [handover, setHandover] = useState<HandoverTask | null>(null);
   const [validating, setValidating] = useState<PossessionCheck | null>(null);
   const [asking, setAsking] = useState(false);
+  const navigate = useNavigate();
 
   if (isLoading) return <Spinner />;
   if (error || !data) return <EmptyState title="Não foi possível carregar" description="Verifique a conexão e tente de novo." />;
@@ -35,7 +38,7 @@ const MinhaArea: React.FC = () => {
         <p className="text-sm font-semibold text-urucum">Olá, {user?.name.split(' ')[0]}</p>
         <h1 className="font-display text-3xl font-extrabold mt-1">Minha área</h1>
         <p className="text-sm text-muted-foreground mt-1">O que você precisa fazer e os bens que estão no seu nome.</p>
-        <Button className="mt-4" size="lg" onClick={() => setAsking(true)}><PackagePlus /> Pedir um bem</Button>
+        <Button className="mt-4" size="lg" onClick={() => setAsking(true)}><PackagePlus /> Pedir um item</Button>
         <MeusPedidos />
       </div>
 
@@ -49,14 +52,16 @@ const MinhaArea: React.FC = () => {
             <CircleCheck className="h-6 w-6 text-success shrink-0" />
             <div>
               <p className="font-semibold">Tudo em dia</p>
-              <p className="text-sm text-muted-foreground">Quando o gerente pedir algo para você, aparece aqui.</p>
+              <p className="text-sm text-muted-foreground">Quando o gerente ou um colega pedir algo para você, aparece aqui.</p>
             </div>
           </div>
         ) : (
           <div className="mt-3 space-y-3">
             {data.tasks.map(t => (t.kind === 'validar'
               ? <ValidateCard key={t.check.id} check={t.check} onOpen={() => setValidating(t.check)} />
-              : <HandoverCard key={t.movementId} task={t} onOpen={() => setHandover(t)} />))}
+              : t.kind === 'pedido_setor' || t.kind === 'pedido_negado'
+                ? <RequestCard key={t.request.id} task={t} onOpen={() => navigate(`/solicitacoes/${t.request.id}`)} />
+                : <HandoverCard key={t.movementId} task={t} onOpen={() => setHandover(t)} />))}
           </div>
         )}
       </section>
@@ -101,6 +106,24 @@ const TaskShell: React.FC<{ icon: React.ElementType; title: string; subtitle: st
     <div className="mt-3 flex justify-end">{action}</div>
   </article>
 );
+
+// Pedido de bem: o feito ao setor da pessoa (ela decide se envia) ou o dela que o setor negou.
+const RequestCard: React.FC<{ task: RequestTask; onOpen: () => void }> = ({ task, onOpen }) => {
+  const r = task.request;
+  const toMe = task.kind === 'pedido_setor';
+  return (
+    <TaskShell
+      icon={toMe ? Inbox : ShoppingCart}
+      title={toMe ? `Pedido de ${r.requestedByName}: ${r.item}` : `Seu pedido de ${r.item} foi negado`}
+      subtitle={toMe
+        ? `${r.number} · para o setor ${r.source?.sector || ''} · ${fmtRelative(r.createdAt)}${r.urgency === 'urgente' ? ' · urgente' : ''}`
+        : `${r.number} · ${r.handledByName || 'O setor'} não tem para enviar. Você pode pedir a compra ao patrimônio.`}
+      action={<Button variant="urucum" onClick={onOpen}>{toMe ? <><Inbox /> Ver pedido</> : <><ShoppingCart /> Ver e pedir compra</>}</Button>}
+    >
+      <p className="text-sm mt-2">“{toMe ? r.justification : r.decisionNote || r.justification}”</p>
+    </TaskShell>
+  );
+};
 
 const HandoverCard: React.FC<{ task: HandoverTask; onOpen: () => void }> = ({ task, onOpen }) => {
   const send = task.kind === 'enviar';

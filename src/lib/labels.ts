@@ -128,6 +128,8 @@ export const LAST_CHECK: Record<string, string> = {
 
 // Situação da solicitação na visão de quem atende (gerente) e na de quem pediu.
 export const REQUEST_STATUS: Record<RequestStatus, { label: string; mine: string; variant: Variant }> = {
+  aguardando_setor: { label: 'Com o setor', mine: 'Aguardando o setor', variant: 'warn' },
+  negada_setor: { label: 'Negada pelo setor', mine: 'Negado pelo setor', variant: 'danger' },
   aberta: { label: 'Nova', mine: 'Recebido', variant: 'warn' },
   em_analise: { label: 'Em análise', mine: 'Em análise', variant: 'info' },
   em_atendimento: { label: 'Em atendimento', mine: 'A caminho', variant: 'info' },

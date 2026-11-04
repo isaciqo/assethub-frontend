@@ -22,7 +22,7 @@ const NAV = [
   { to: '/conferir', label: 'Conferir', icon: ScanLine },
   { to: '/pendencias', label: 'Pendências', icon: TriangleAlert },
   { to: '/movimentacoes', label: 'Movimentações', icon: ArrowLeftRight },
-  { to: '/solicitacoes', label: 'Solicitações', icon: Inbox, roles: ['admin', 'gestor'] },
+  { to: '/solicitacoes', label: 'Solicitações', icon: Inbox },
   { to: '/bens', label: 'Bens', icon: Boxes },
   { to: '/importar', label: 'Importar planilha', icon: Upload, roles: ['admin', 'gestor'] },
   { to: '/etiquetas', label: 'Etiquetas QR', icon: QrCode },

@@ -63,13 +63,15 @@ const AppRoutes = () => {
   const { isAuthenticated, user } = useAuth();
   useEffect(() => { if (isAuthenticated) startAutoSync(); }, [isAuthenticated]);
 
-  // Servidor tem uma tela só; qualquer outro endereço leva de volta a ela.
+  // Servidor: a Minha área e as Solicitações; qualquer outro endereço leva à Minha área.
   if (isAuthenticated && user?.role === 'servidor') {
     return (
       <Routes>
         <Route path="/verificar/:movementId" element={<Verificar />} />
         <Route element={<ServidorLayout />}>
           <Route path="/minha-area" element={<MinhaArea />} />
+          <Route path="/solicitacoes" element={<Solicitacoes />} />
+          <Route path="/solicitacoes/:id" element={<SolicitacaoDetalhe />} />
         </Route>
         <Route path="*" element={<Navigate to="/minha-area" replace />} />
       </Routes>

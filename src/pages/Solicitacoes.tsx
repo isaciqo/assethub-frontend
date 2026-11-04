@@ -1,27 +1,28 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, FileText, Inbox, Loader2, PackageCheck, Paperclip, ShoppingCart, XCircle } from 'lucide-react';
+import { ArrowLeft, FileText, Inbox, Loader2, PackageCheck, PackagePlus, Paperclip, Search, Send, ShoppingCart, Users, XCircle } from 'lucide-react';
+import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { ConservationBadge, EmptyState, Field, MovementStatusBadge, NativeSelect, PageHeader, Spinner } from '@/components/common';
 import { FilterBar, type FilterChip } from '@/components/FilterBar';
-import { RequestStatusBadge } from '@/components/Solicitacoes';
-import { placeLabel } from '@/components/Sectors';
-import { useRequest, useRequestSuggestions, useRequests, useUnits, useUsers } from '@/hooks/queries';
+import { MeusPedidos, PedirBemDialog, RequestStatusBadge } from '@/components/Solicitacoes';
+import { groupSectors, placeLabel, sectorsOf } from '@/components/Sectors';
+import { useRequest, useRequestCandidates, useRequestSuggestions, useRequests, useUnits, useUsers } from '@/hooks/queries';
 import { useUrlFilters } from '@/hooks/useUrlFilters';
-import { requestsService } from '@/services/api';
+import { requestsService, unitsService } from '@/services/api';
 import { downloadFile, openFile } from '@/services/http';
 import { useAuth } from '@/lib/auth-context';
 import { REQUEST_STATUS } from '@/lib/labels';
 import { fmtDateTime, fmtRelative, normalizeText } from '@/lib/format';
 import { toast } from '@/components/ui/sonner';
-import type { ApiError, RequestStatus } from '@/types';
+import type { ApiError, AssetRequestDetail, RequestStatus } from '@/types';
 
-// Aba do responsável pelo patrimônio: a fila de pedidos de bens das varas e
-// setores. Urgentes primeiro, depois os mais antigos.
+// Fila do responsável pelo patrimônio: os pedidos que chegam a ele (sem setor,
+// setor sem responsável ou negados pelo setor e levados à compra).
 const KEYS = ['situacao', 'comarca', 'urgencia'] as const;
 
 const ACTION_LABEL: Record<string, string> = {
@@ -31,11 +32,14 @@ const ACTION_LABEL: Record<string, string> = {
   encaminhada_compra: 'Encaminhado para compra',
   recusada: 'Recusado',
   cancelada: 'Cancelado por quem pediu',
+  enviada_setor: 'Enviado pelo setor',
+  negada_setor: 'Negado pelo setor',
+  pedido_compra: 'Levado ao patrimônio para compra',
   atendida: 'Bem entregue',
   movimentacao_encerrada: 'Movimentação encerrada — voltou para análise',
 };
 
-const Solicitacoes: React.FC = () => {
+const FilaPatrimonio: React.FC = () => {
   const { values: f, set, clear } = useUrlFilters(KEYS);
   const { data: units = [] } = useUnits();
   const status = f.situacao || 'abertas';
@@ -48,11 +52,8 @@ const Solicitacoes: React.FC = () => {
   ];
 
   return (
-    <div className="animate-fade-in">
-      <PageHeader
-        title="Solicitações de bens"
-        subtitle="Pedidos das varas e setores. Atenda primeiro com um bem que já existe; compra só quando não houver."
-      />
+    <div>
+      <p className="text-sm text-muted-foreground mb-3">Pedidos que chegam ao patrimônio. Atenda primeiro com um bem que já existe; compra só quando não houver.</p>
       <div className="card-clay p-3 mb-4">
         <FilterBar
           primary={(
@@ -103,11 +104,186 @@ const Solicitacoes: React.FC = () => {
   );
 };
 
+type Aba = 'setor' | 'meus' | 'patrimonio' | 'responsaveis';
+
+// Solicitações: pedir um item a um setor, responder os pedidos feitos ao setor
+// da pessoa e acompanhar os próprios. O gestor também vê a fila do patrimônio
+// e define quem responde por cada setor.
+const Solicitacoes: React.FC = () => {
+  const { can } = useAuth();
+  const manager = can('admin', 'gestor');
+  const [params, setParams] = useSearchParams();
+  const [asking, setAsking] = useState(false);
+  const { data: toMe = [] } = useRequests({ box: 'setor' });
+  const waiting = toMe.filter(r => r.status === 'aguardando_setor').length;
+  const tabs: { id: Aba; label: string; count?: number }[] = [
+    { id: 'setor', label: 'Para o meu setor', count: waiting },
+    { id: 'meus', label: 'Meus pedidos' },
+    ...(manager ? [{ id: 'patrimonio' as Aba, label: 'Patrimônio' }, { id: 'responsaveis' as Aba, label: 'Responsáveis dos setores' }] : []),
+  ];
+  const aba = (tabs.find(t => t.id === params.get('aba'))?.id) || (manager ? 'patrimonio' : waiting ? 'setor' : 'meus');
+  const go = (id: Aba) => setParams(prev => { const n = new URLSearchParams(); n.set('aba', id); if (id === 'patrimonio') ['situacao', 'comarca', 'urgencia'].forEach(k => prev.get(k) && n.set(k, prev.get(k)!)); return n; }, { replace: true });
+
+  return (
+    <div className="animate-fade-in">
+      <PageHeader
+        title="Solicitações"
+        subtitle="Peça um item a um setor. Quem responde pelo setor decide se envia; se não tiver, você pode pedir a compra ao patrimônio."
+        actions={<Button size="lg" onClick={() => setAsking(true)}><PackagePlus /> Pedir um item</Button>}
+      />
+      <div className="flex gap-1 overflow-x-auto rounded-xl border bg-muted p-1 mb-4" role="tablist">
+        {tabs.map(t => (
+          <button key={t.id} role="tab" aria-selected={aba === t.id} onClick={() => go(t.id)}
+            className={`whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-bold ${aba === t.id ? 'bg-card shadow-card text-primary' : 'text-muted-foreground'}`}>
+            {t.label}
+            {!!t.count && <span className="ml-1.5 rounded-full bg-urucum text-white text-[11px] px-1.5 py-0.5 tabular">{t.count}</span>}
+          </button>
+        ))}
+      </div>
+
+      {aba === 'setor' && <ParaMeuSetor />}
+      {aba === 'meus' && (
+        <MeusPedidos title={false} empty={<EmptyState icon={Inbox} title="Você ainda não pediu nada" description="Toque em “Pedir um item” para pedir a um setor." />} />
+      )}
+      {aba === 'patrimonio' && manager && <FilaPatrimonio />}
+      {aba === 'responsaveis' && manager && <ResponsaveisSetores />}
+      <PedirBemDialog open={asking} onOpenChange={setAsking} />
+    </div>
+  );
+};
+
+// Pedidos feitos aos setores que a pessoa responde.
+const ParaMeuSetor: React.FC = () => {
+  const { data = [], isLoading } = useRequests({ box: 'setor' });
+  if (isLoading) return <Spinner />;
+  if (!data.length) {
+    return <EmptyState icon={Inbox} title="Nenhum pedido para o seu setor" description="Quando alguém pedir um item a um setor que você responde, ele aparece aqui." />;
+  }
+  return (
+    <ul className="grid sm:grid-cols-2 xl:grid-cols-3 gap-3">
+      {data.map(r => (
+        <li key={r.id}>
+          <Link to={`/solicitacoes/${r.id}`} className="card-clay p-4 block hover:shadow-elevated transition-shadow h-full">
+            <div className="flex items-start justify-between gap-2">
+              <span className="text-[11px] font-bold text-urucum">{r.number}</span>
+              <div className="flex gap-1">{r.urgency === 'urgente' && <span className="rounded-full bg-destructive px-2 py-0.5 text-[10px] font-bold text-destructive-foreground">URGENTE</span>}<RequestStatusBadge value={r.status} /></div>
+            </div>
+            <div className="font-display font-bold mt-1">{r.quantity > 1 ? `${r.quantity}× ` : ''}{r.item}</div>
+            <div className="text-xs text-muted-foreground mt-0.5">Pedido ao setor {r.source?.sector} · por {r.requestedByName}</div>
+            <p className="text-sm mt-2 line-clamp-2">{r.justification}</p>
+            <div className="text-xs text-muted-foreground mt-2">{fmtRelative(r.createdAt)}</div>
+          </Link>
+        </li>
+      ))}
+    </ul>
+  );
+};
+
+// Quem responde pelos pedidos de cada setor. Sem responsável, os pedidos ao
+// setor vão direto para o patrimônio.
+const ResponsaveisSetores: React.FC = () => {
+  const qc = useQueryClient();
+  const { data: units = [] } = useUnits();
+  const { data: users = [] } = useUsers();
+  const save = useMutation({
+    mutationFn: (v: { unitId: string; location: string; userId: string }) => unitsService.setSectorOwner(v.unitId, v.location, v.userId || null),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['units'] }); qc.invalidateQueries({ queryKey: ['request-sources'] }); toast.success('Responsável atualizado'); },
+    onError: (e: ApiError) => toast.error(e.message),
+  });
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-muted-foreground flex items-center gap-2"><Users className="h-4 w-4 text-primary" /> Quem responde pelos pedidos feitos a cada setor. Sem responsável, o pedido vai para o patrimônio.</p>
+      {units.map(u => (
+        <section key={u.id} className="card-clay p-4">
+          <h2 className="font-display font-bold">{u.name}</h2>
+          {groupSectors(sectorsOf(u)).map(g => (
+            <div key={g.kind} className="mt-3">
+              <div className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground mb-1">{g.label}</div>
+              <ul className="divide-y">
+                {g.items.map(sct => (
+                  <li key={sct.name} className="py-2 grid sm:grid-cols-[1fr_260px] gap-2 sm:items-center">
+                    <span className="text-sm font-semibold">{sct.name}</span>
+                    <NativeSelect value={sct.ownerId || ''} disabled={save.isPending} aria-label={`Responsável por ${sct.name}`}
+                      onChange={e => save.mutate({ unitId: u.id, location: sct.name, userId: e.target.value })}>
+                      <option value="">Sem responsável (patrimônio)</option>
+                      {users.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </NativeSelect>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </section>
+      ))}
+    </div>
+  );
+};
+
+// Responsável pelo setor: procura na lista dele se tem o item e decide se envia.
+const RespostaDoSetor: React.FC<{ r: AssetRequestDetail; onDone: () => void }> = ({ r, onDone }) => {
+  const [search, setSearch] = useState('');
+  const [term, setTerm] = useState('');
+  const [picked, setPicked] = useState<string[]>([]);
+  const [note, setNote] = useState('');
+  const [denying, setDenying] = useState(false);
+  useEffect(() => { const t = setTimeout(() => setTerm(search.trim()), 300); return () => clearTimeout(t); }, [search]);
+  const { data: candidates = [], isFetching } = useRequestCandidates(r.id, term);
+  const respond = useMutation({
+    mutationFn: (decision: 'enviar' | 'negar') => requestsService.respond(r.id, { decision, asset_ids: decision === 'enviar' ? picked : [], note: note.trim() }),
+    onSuccess: (_, decision) => {
+      toast.success(decision === 'enviar' ? `Pedido atendido: envie o bem para ${r.requestedByName} pela sua Minha área` : `${r.requestedByName} foi avisado(a) de que o setor não tem o item`);
+      onDone();
+    },
+    onError: (e: ApiError) => toast.error(e.message),
+  });
+
+  return (
+    <section className="card-clay p-5 mt-4">
+      <h2 className="font-display text-lg font-bold">Você tem este item?</h2>
+      <p className="text-sm text-muted-foreground mt-1">Procure na sua lista (os bens do setor {r.source?.sector} e os que estão no seu nome) e escolha o que vai enviar.</p>
+      <div className="relative mt-3">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input className="pl-9" value={search} onChange={e => setSearch(e.target.value)} placeholder={`Ex.: ${r.item.toLowerCase()}`} aria-label="Procurar na minha lista" />
+      </div>
+      <ul className="mt-3 space-y-1.5 max-h-80 overflow-y-auto">
+        {isFetching && !candidates.length ? <li className="text-sm text-muted-foreground p-2">Procurando…</li>
+          : !candidates.length ? <li className="text-sm text-muted-foreground p-2">Nenhum bem encontrado na sua lista{term ? ` para “${term}”` : ''}.</li>
+            : candidates.map(a => {
+              const on = picked.includes(a.id);
+              return (
+                <li key={a.id}>
+                  <label className="flex items-start gap-3 rounded-xl border p-3 cursor-pointer hover:bg-accent">
+                    <Checkbox checked={on} onCheckedChange={v => setPicked(v ? [...picked, a.id] : picked.filter(x => x !== a.id))} className="mt-0.5" />
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm font-semibold"><code className="text-primary mr-1">{a.code}</code>{a.description}</span>
+                      <span className="block text-xs text-muted-foreground">{placeLabel(a.location, a.room)}{a.responsibleName ? ` · com ${a.responsibleName}` : ' · sem responsável'}</span>
+                    </span>
+                    <ConservationBadge value={a.conservationStatus} />
+                  </label>
+                </li>
+              );
+            })}
+      </ul>
+      <Field label="Recado para quem pediu (opcional)" className="mt-3">
+        <Textarea rows={2} value={note} onChange={e => setNote(e.target.value)} placeholder={denying ? 'Ex.: não temos cadeira sobrando no setor' : 'Ex.: pode buscar na sala 3'} />
+      </Field>
+      <div className="grid sm:grid-cols-2 gap-2 mt-4">
+        <Button size="lg" disabled={!picked.length || respond.isPending} onClick={() => respond.mutate('enviar')}>
+          {respond.isPending && !denying ? <Loader2 className="animate-spin" /> : <Send />} Enviar {picked.length > 1 ? `${picked.length} bens` : 'o bem escolhido'}
+        </Button>
+        <Button size="lg" variant="outline" disabled={respond.isPending} onClick={() => { setDenying(true); respond.mutate('negar'); }}>
+          <XCircle /> Não tenho — negar pedido
+        </Button>
+      </div>
+    </section>
+  );
+};
+
 export const SolicitacaoDetalhe: React.FC = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const { can } = useAuth();
+  const { can, user } = useAuth();
   const { data: r, isLoading } = useRequest(id);
   const open = !!r && ['aberta', 'em_analise'].includes(r.status);
   const { data: suggestions = [], isLoading: loadingSug } = useRequestSuggestions(id, open && can('admin', 'gestor'));
@@ -122,6 +298,8 @@ export const SolicitacaoDetalhe: React.FC = () => {
   if (!r) return <EmptyState icon={Inbox} title="Solicitação não encontrada" />;
 
   const refresh = () => {
+    qc.invalidateQueries({ queryKey: ['me-area'] });
+    qc.invalidateQueries({ queryKey: ['request-candidates'] });
     qc.invalidateQueries({ queryKey: ['request', id] });
     qc.invalidateQueries({ queryKey: ['requests'] });
     qc.invalidateQueries({ queryKey: ['dashboard'] });
@@ -136,7 +314,7 @@ export const SolicitacaoDetalhe: React.FC = () => {
         eyebrow={r.number}
         title={`${r.quantity > 1 ? `${r.quantity}× ` : ''}${r.item}`}
         subtitle={<>{r.unitName} · {placeLabel(r.sector, r.room)} · pedido por <strong>{r.requestedByName}</strong> {fmtRelative(r.createdAt)}</>}
-        actions={<div className="flex gap-1.5">{r.urgency === 'urgente' && <span className="rounded-full bg-destructive px-2.5 py-1 text-xs font-bold text-destructive-foreground">URGENTE</span>}<RequestStatusBadge value={r.status} /></div>}
+        actions={<div className="flex gap-1.5">{r.urgency === 'urgente' && <span className="rounded-full bg-destructive px-2.5 py-1 text-xs font-bold text-destructive-foreground">URGENTE</span>}<RequestStatusBadge value={r.status} mine={user?.id === r.requestedBy} /></div>}
       />
 
       <section className="card-clay p-5">
@@ -148,9 +326,16 @@ export const SolicitacaoDetalhe: React.FC = () => {
             <Paperclip /> Ver anexo
           </Button>
         )}
-        {r.decisionNote && <p className="text-sm mt-3"><strong>Decisão:</strong> {r.decisionNote}</p>}
+        {r.source && <p className="text-sm mt-3"><strong>Pedido ao setor:</strong> {r.source.sector}{r.sourceUnitName ? ` · ${r.sourceUnitName}` : ''} · {r.source.ownerName ? `responde ${r.source.ownerName}` : 'sem responsável (patrimônio)'}</p>}
+        {r.decisionNote && <p className="text-sm mt-3"><strong>Decisão:</strong> {r.decisionNote}{r.handledByName ? ` — ${r.handledByName}` : ''}</p>}
         {r.purchaseJustification && <p className="text-sm mt-2"><strong>Justificativa da compra:</strong> {r.purchaseJustification}</p>}
       </section>
+
+      {r.status === 'aguardando_setor' && (user?.id === r.source?.ownerId || can('admin', 'gestor')) && <RespostaDoSetor r={r} onDone={refresh} />}
+      {r.status === 'aguardando_setor' && user?.id === r.requestedBy && (
+        <p className="card-clay p-4 mt-4 text-sm">Aguardando <strong>{r.source?.ownerName}</strong> responder se o setor tem o item.</p>
+      )}
+      {r.status === 'negada_setor' && user?.id === r.requestedBy && <PedirCompra id={r.id} by={r.handledByName} onDone={refresh} />}
 
       {open && can('admin', 'gestor') && (
         <section className="card-clay p-5 mt-4">
@@ -204,10 +389,30 @@ export const SolicitacaoDetalhe: React.FC = () => {
         </ol>
       </section>
 
+      {can('admin', 'gestor') && <>
       <FulfillDialog open={dialog === 'fulfill'} onOpenChange={o => setDialog(o ? 'fulfill' : null)} requestId={r.id} quantity={r.quantity} suggestions={suggestions} onDone={refresh} />
       <DecisionDialog kind="purchase" open={dialog === 'purchase'} onOpenChange={o => setDialog(o ? 'purchase' : null)} requestId={r.id} available={suggestions.length} onDone={refresh} />
       <DecisionDialog kind="reject" open={dialog === 'reject'} onOpenChange={o => setDialog(o ? 'reject' : null)} requestId={r.id} available={suggestions.length} onDone={refresh} />
+      </>}
     </div>
+  );
+};
+
+// Setor negou: quem pediu leva o pedido ao patrimônio, que decide a compra.
+const PedirCompra: React.FC<{ id: string; by: string; onDone: () => void }> = ({ id, by, onDone }) => {
+  const ask = useMutation({
+    mutationFn: () => requestsService.askPurchase(id),
+    onSuccess: () => { toast.success('Pedido de compra enviado ao setor de patrimônio'); onDone(); },
+    onError: (e: ApiError) => toast.error(e.message),
+  });
+  return (
+    <section className="card-clay p-5 mt-4 border-destructive/40">
+      <h2 className="font-display text-lg font-bold">Seu pedido foi negado{by ? ` por ${by}` : ''}</h2>
+      <p className="text-sm text-muted-foreground mt-1">O setor não tem o item para enviar. Você pode abrir uma solicitação de compra: o pedido vai para o setor de patrimônio, que decide.</p>
+      <Button size="lg" className="mt-4" disabled={ask.isPending} onClick={() => ask.mutate()}>
+        {ask.isPending ? <Loader2 className="animate-spin" /> : <ShoppingCart />} Pedir compra ao patrimônio
+      </Button>
+    </section>
   );
 };
 

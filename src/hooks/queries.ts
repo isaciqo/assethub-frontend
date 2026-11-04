@@ -42,10 +42,13 @@ export const useFacets = (unitId?: string, location?: string) =>
 export const useMyArea = () => useQuery({ queryKey: ['me-area'], queryFn: meService.area, refetchInterval: 20_000 });
 export const usePossessionChecks = () => useQuery({ queryKey: ['possession-checks'], queryFn: possessionService.list, refetchInterval: 30_000 });
 
-export const useRequests = (params?: { status?: string; unit_id?: string; urgency?: string; mine?: string }) =>
+export const useRequests = (params?: { status?: string; unit_id?: string; urgency?: string; mine?: string; box?: string }) =>
   useQuery({ queryKey: ['requests', params], queryFn: () => requestsService.list(params), refetchInterval: 30_000 });
 export const useRequest = (id?: string) =>
   useQuery({ queryKey: ['request', id], queryFn: () => requestsService.detail(id!), enabled: !!id });
 export const useRequestSuggestions = (id?: string, enabled = true) =>
   useQuery({ queryKey: ['request-suggestions', id], queryFn: () => requestsService.suggestions(id!), enabled: !!id && enabled });
+export const useRequestSources = () => useQuery({ queryKey: ['request-sources'], queryFn: requestsService.sources, staleTime: 60_000 });
+export const useRequestCandidates = (id: string | undefined, search: string, enabled = true) =>
+  useQuery({ queryKey: ['request-candidates', id, search], queryFn: () => requestsService.candidates(id!, search), enabled: !!id && enabled });
 export const useCatalog = () => useQuery({ queryKey: ['request-catalog'], queryFn: requestsService.catalog, staleTime: Infinity });

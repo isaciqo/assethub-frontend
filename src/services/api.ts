@@ -2,7 +2,7 @@ import { http } from './http';
 import type {
   Asset, AssetDetail, AuthTokens, Dashboard, Discrepancy, DiscrepancyAction, ImportReport, Inventory, InventoryCheck,
   InventoryDetail, InventorySnapshot, Meta, Movement, MovementDetail, MyArea, Paged, PossessionCheck, Unit, User, VerifyResult,
-  AssetFacets, AssetRequest, AssetRequestDetail, CatalogItem,
+  AssetFacets, AssetRequest, AssetRequestDetail, CatalogItem, RequestSource,
 } from '@/types';
 
 // Um service por recurso, como no MEDagenda (src/services/*.service.ts),
@@ -23,6 +23,7 @@ export const unitsService = {
   list: () => http.get<Unit[]>('/units'),
   create: (data: { name: string; code: string; city?: string; region?: string }) => http.post<Unit>('/units', data),
   setLocation: (id: string, geo: { lat: number; lng: number; accuracy: number | null }) => http.patch<Unit>(`/units/${id}/location`, geo),
+  setSectorOwner: (id: string, location: string, user_id: string | null) => http.put<Unit>(`/units/${id}/sector-owner`, { location, user_id }),
 };
 
 export const usersService = {
@@ -112,7 +113,11 @@ export const possessionService = {
 
 export const requestsService = {
   catalog: () => http.get<CatalogItem[]>('/requests/catalog'),
-  list: (params?: { status?: string; unit_id?: string; urgency?: string; mine?: string }) => http.get<(AssetRequest & { unitName: string })[]>('/requests', params),
+  list: (params?: { status?: string; unit_id?: string; urgency?: string; mine?: string; box?: string }) => http.get<(AssetRequest & { unitName: string })[]>('/requests', params),
+  sources: () => http.get<RequestSource[]>('/requests/sources'),
+  candidates: (id: string, search: string) => http.get<Asset[]>(`/requests/${id}/candidates`, { search }),
+  respond: (id: string, body: { decision: 'enviar' | 'negar'; asset_ids?: string[]; note?: string }) => http.post<AssetRequest>(`/requests/${id}/respond`, body),
+  askPurchase: (id: string, note = '') => http.post<AssetRequest>(`/requests/${id}/ask-purchase`, { note }),
   detail: (id: string) => http.get<AssetRequestDetail>(`/requests/${id}`),
   create: (data: Record<string, unknown>) => http.post<AssetRequest>('/requests', data),
   suggestions: (id: string) => http.get<(Asset & { unitName: string })[]>(`/requests/${id}/suggestions`),

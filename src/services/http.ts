@@ -103,6 +103,7 @@ class HttpClient {
   get<T>(path: string, params?: Record<string, string | undefined>) { return this.request<T>('GET', path, undefined, params); }
   post<T>(path: string, body?: Body) { return this.request<T>('POST', path, body); }
   patch<T>(path: string, body?: Body) { return this.request<T>('PATCH', path, body); }
+  put<T>(path: string, body?: Body) { return this.request<T>('PUT', path, body); }
   delete<T>(path: string) { return this.request<T>('DELETE', path); }
 
   // Binários (PDF, XLSX, imagens de evidência) precisam do Bearer — <img src>
