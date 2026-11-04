@@ -39,9 +39,15 @@ interface Draft {
   notes: string;
   photos: string[];
   editing?: PendingOp;
-  // Bem já conferido: a ficha abre igual, mas confirmar não grava de novo.
-  already?: boolean;
+  // Bem já conferido: a ficha abre igual, mas confirmar sem mudar nada não grava de novo.
+  already?: { by: string; at: string };
+  // Código fora da lista do aparelho: a ficha abre na hora enquanto o bem é procurado na base.
+  loading?: boolean;
 }
+
+// Preferência nova: quem já tinha escolhido "Rápida" passa a começar com a ficha.
+const MODE_KEY = 'assethub_scan_mode_v2';
+const fromCamera = (m: CheckMethod) => m === 'qr' || m === 'barcode' || m === 'ocr';
 
 const MAX_ELAPSED = 10 * 60 * 1000;
 
@@ -63,7 +69,7 @@ const Conferencia: React.FC = () => {
   const { user } = useAuth();
   const online = useOnline();
   const { snapshot, ops, addOp, reload } = useOfflineInventory(inventoryId);
-  const [mode, setMode] = useState<Mode>(() => (localStorage.getItem('assethub_scan_mode') as Mode) || 'rapida');
+  const [mode, setMode] = useState<Mode>(() => (localStorage.getItem(MODE_KEY) as Mode) || 'detalhada');
   const [room, setRoom] = useState(() => localStorage.getItem(`assethub_room_${inventoryId}`) || '');
   const [cameraOn, setCameraOn] = useState(false);
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -74,9 +80,11 @@ const Conferencia: React.FC = () => {
   const lookingUp = useRef(new Set<string>());
   const draftOpen = useRef(false);
   useEffect(() => { draftOpen.current = !!draft; }, [draft]);
+  // Último bem fechado na ficha: a câmera volta a ler com o mesmo QR na frente.
+  const recentClose = useRef({ code: '', at: 0 });
   const gps = useGeoWatch();
 
-  useEffect(() => { localStorage.setItem('assethub_scan_mode', mode); }, [mode]);
+  useEffect(() => { localStorage.setItem(MODE_KEY, mode); }, [mode]);
   useEffect(() => { localStorage.setItem(`assethub_room_${inventoryId}`, room); lastAt.current = Date.now(); }, [room, inventoryId]);
 
   // Com internet, atualiza o pacote ao abrir e a cada minuto: o que os colegas
@@ -179,48 +187,52 @@ const Conferencia: React.FC = () => {
     photos: [],
   });
 
+  // Fora da lista do aparelho: procura o código na base inteira. Achou, dá
+  // baixa como qualquer bem (o servidor inclui o bem no inventário).
+  const lookup = (code: string): Promise<SnapshotAsset | null> => assetsService.byCode(code).then(({ asset: f }) => (f ? {
+    id: f.id, code: f.code, codeNormalized: f.codeNormalized, description: f.description,
+    category: f.category, brand: f.brand, serialNumber: f.serialNumber, location: f.location,
+    room: f.room, responsibleName: f.responsibleName, conservationStatus: f.conservationStatus,
+  } : null)).catch(() => null);
+
   const handleCode = useCallback(async (raw: string, method: CheckMethod) => {
-    // Com a ficha aberta, a câmera não confere mais nada.
+    // Vale a primeira leitura: com a ficha aberta, a câmera não confere mais nada.
     if (draftOpen.current) return;
     if (!raw) {
       feedback('error');
       toast.error('Não consegui ler o número da plaqueta', { description: 'Aproxime a câmera, melhore a luz ou digite o tombamento.' });
       return;
     }
-    // Modo detalhado: desliga a câmera já na leitura, antes de qualquer busca.
-    if (mode === 'detalhada') { draftOpen.current = true; setCameraOn(false); }
-    let asset = byCode.get(normalizeCode(raw)) || null;
+    const key = normalizeCode(raw);
+    if (fromCamera(method) && key === recentClose.current.code && Date.now() - recentClose.current.at < 6000) return;
+    let asset = byCode.get(key) || null;
+    const alreadyFor = (a: SnapshotAsset | null) => { const c = a && checked.get(a.id); return c ? { by: c.by, at: c.at } : undefined; };
 
-    // Fora da lista do aparelho: procura o código na base inteira. Achou, dá
-    // baixa como qualquer bem (o servidor inclui o bem no inventário). Sem
-    // internet, registra pelo código e o servidor localiza ao sincronizar.
-    if (!asset && !navigator.onLine && mode === 'rapida') {
+    // Com ficha: a ficha abre na hora (a câmera pausa sozinha enquanto ela está aberta).
+    if (mode === 'detalhada') {
+      draftOpen.current = true;
+      if (asset || !navigator.onLine) {
+        setDraft({ ...draftFor(asset, asset?.code || raw.trim(), method), already: alreadyFor(asset) });
+        return;
+      }
+      const code = raw.trim();
+      setDraft({ ...draftFor(null, code, method), loading: true });
+      const found = await lookup(code);
+      setDraft(prev => (prev?.loading && prev.code === code ? { ...draftFor(found, found?.code || code, method), already: alreadyFor(found) } : prev));
+      return;
+    }
+
+    // Sem internet, registra pelo código e o servidor localiza ao sincronizar.
+    if (!asset && !navigator.onLine) {
       save(draftFor(null, raw.trim(), method));
       toast.success(`${raw.trim()} conferido`, { description: 'Sem internet: sincroniza quando o sinal voltar.', duration: 2500 });
       return;
     }
-    if (!asset && navigator.onLine) {
+    if (!asset) {
       // A câmera continua lendo enquanto a busca responde: uma busca por código.
-      const key = normalizeCode(raw);
-      if (lookingUp.current.has(key)) { if (mode === 'detalhada') draftOpen.current = false; return; }
+      if (lookingUp.current.has(key)) return;
       lookingUp.current.add(key);
-      const found = await assetsService.byCode(raw.trim()).then(r => r.asset).catch(() => null)
-        .finally(() => lookingUp.current.delete(key));
-      if (found) {
-        asset = {
-          id: found.id, code: found.code, codeNormalized: found.codeNormalized, description: found.description,
-          category: found.category, brand: found.brand, serialNumber: found.serialNumber, location: found.location,
-          room: found.room, responsibleName: found.responsibleName, conservationStatus: found.conservationStatus,
-        };
-      }
-    }
-
-    // Leitura sempre termina em sucesso na tela (pedido para o vídeo do MVP):
-    // código fora da base é registrado mesmo assim (o servidor abre a pendência
-    // de não cadastrado) e bem já conferido não gera aviso nem registro novo.
-    if (mode === 'detalhada') {
-      setDraft({ ...draftFor(asset, asset?.code || raw.trim(), method), already: !!(asset && checked.get(asset.id)) });
-      return;
+      asset = await lookup(raw.trim()).finally(() => lookingUp.current.delete(key));
     }
 
     if (!asset) {
@@ -260,12 +272,17 @@ const Conferencia: React.FC = () => {
 
   const openEdit = (op: PendingOp) => {
     const asset = op.asset_id ? byId.get(op.asset_id) || null : null;
-    setCameraOn(false);
     setDraft({
       asset, code: op.asset_code, method: op.method, location: op.observed_location, condition: op.observed_condition,
       responsible: op.observed_responsible, description: op.observed_description, notes: op.notes,
       photos: op.photo ? [op.photo] : [], editing: op,
     });
+  };
+
+  // Fecha a ficha; se a câmera estava ligada, ela volta a ler sozinha.
+  const closeSheet = (d: Draft) => {
+    recentClose.current = { code: normalizeCode(d.asset?.code || d.code), at: Date.now() };
+    setDraft(null);
   };
 
   const pickOcr = useCallback((candidates: string[]) => candidates.find(c => byCode.has(normalizeCode(c))) || candidates[0] || null, [byCode]);
@@ -344,7 +361,7 @@ const Conferencia: React.FC = () => {
           </div>
         </Field>
         <div className="flex rounded-xl border p-1 bg-muted" role="radiogroup" aria-label="Modo de conferência">
-          {([['rapida', Zap, 'Rápida'], ['detalhada', ListChecks, 'Detalhada']] as const).map(([m, Icon, label]) => (
+          {([['detalhada', ListChecks, 'Com ficha'], ['rapida', Zap, 'Rápida']] as const).map(([m, Icon, label]) => (
             <button key={m} role="radio" aria-checked={mode === m} onClick={() => setMode(m)}
               className={cn('flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-bold', mode === m ? 'bg-card shadow-card text-primary' : 'text-muted-foreground')}>
               <Icon className="h-3.5 w-3.5" /> {label}
@@ -355,8 +372,8 @@ const Conferencia: React.FC = () => {
 
       <div className="text-xs text-muted-foreground px-1 -mt-1">
         {mode === 'rapida'
-          ? 'Varredura rápida: cada leitura confere o bem na hora, com os dados do cadastro e o setor atual. Toque em "Corrigir" se algo estiver diferente.'
-          : 'Detalhada: cada leitura abre a ficha para conferir estado, responsável, observações e foto.'}
+          ? 'Rápida: cada leitura confere o bem na hora, com os dados do cadastro e o setor atual. Toque em "Corrigir" se algo estiver diferente.'
+          : 'Com ficha: cada leitura abre a ficha do bem para conferir o estado, o setor, quem está com ele e tirar foto antes de confirmar.'}
       </div>
 
       <form onSubmit={submitTyped} className="relative">
@@ -444,9 +461,11 @@ const Conferencia: React.FC = () => {
       </div>
       <div className="h-16" />
 
-      <CheckSheet draft={draft} locations={locations} onClose={() => setDraft(null)} onSave={async d => {
-        if (d.already) feedback('ok'); else await save(d);
-        setDraft(null);
+      <CheckSheet draft={draft} locations={locations} onClose={() => draft && closeSheet(draft)} onSave={async d => {
+        // Já conferido e nada mudou: não grava de novo (evita conferência duplicada).
+        const unchanged = localStatusFor(d.asset, d.location, d.condition, d.responsible) === 'ok' && !d.notes && !d.photos.length;
+        if (d.already && unchanged) feedback('ok'); else await save(d);
+        closeSheet(d);
         if (!d.editing) toast.success(`${d.asset?.code || d.code} conferido`, { description: d.asset?.description, duration: 2500 });
       }} />
     </div>
@@ -460,6 +479,22 @@ const CheckSheet: React.FC<{ draft: Draft | null; locations: string[]; onClose: 
   if (!d) return <Sheet open={false} />;
   const a = d.asset;
   const set = (patch: Partial<Draft>) => setD({ ...d, ...patch });
+  const changedCondition = !!a && d.condition !== a.conservationStatus;
+
+  if (d.loading) {
+    return (
+      <Sheet open={!!draft} onOpenChange={o => !o && onClose()}>
+        <SheetContent side="bottom" className="rounded-t-3xl">
+          <div className="motif-band -mx-6 -mt-6 mb-4 rounded-t-3xl" />
+          <SheetHeader className="sr-only"><SheetTitle>Procurando o bem</SheetTitle><SheetDescription>Aguarde</SheetDescription></SheetHeader>
+          <div className="py-10 text-center">
+            <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
+            <p className="mt-3 font-semibold">Procurando o bem <code className="text-primary">{d.code}</code>…</p>
+          </div>
+        </SheetContent>
+      </Sheet>
+    );
+  }
 
   return (
     <Sheet open={!!draft} onOpenChange={o => !o && onClose()}>
@@ -467,13 +502,28 @@ const CheckSheet: React.FC<{ draft: Draft | null; locations: string[]; onClose: 
         <div className="motif-band -mx-6 -mt-6 mb-4 rounded-t-3xl" />
         <SheetHeader className="text-left">
           <SheetTitle className="font-display text-xl">
-            {a ? <><code className="text-primary">{a.code}</code> · {a.description}</> : <code className="text-primary">{d.code}</code>}
+            {a ? <><code className="text-primary">{a.code}</code> · {a.description}</> : <>Bem <code className="text-primary">{d.code}</code></>}
           </SheetTitle>
           <SheetDescription>
-            {a ? `Cadastro: ${a.location || 'sem setor'} · ${a.responsibleName || 'sem responsável'} · ${CONSERVATION[a.conservationStatus].label}${a.serialNumber ? ` · S/N ${a.serialNumber}` : ''}`
-              : 'Confirme o estado para dar baixa.'}
+            {a ? 'Confira o bem, ajuste o que estiver diferente e confirme.'
+              : 'Este número não está no cadastro. Diga o que é e confirme: o gerente decide depois.'}
           </SheetDescription>
         </SheetHeader>
+
+        {a && (
+          <dl className="mt-4 rounded-2xl border bg-muted/40 p-3 grid grid-cols-2 gap-x-3 gap-y-2.5">
+            <SheetInfo label="Setor" value={[a.location, a.room].filter(Boolean).join(' · ') || 'Sem setor'} />
+            <SheetInfo label="Responsável" value={a.responsibleName || 'Sem responsável'} />
+            <SheetInfo label="Estado no cadastro" value={CONSERVATION[a.conservationStatus].label} />
+            <SheetInfo label="Categoria" value={[a.category, a.brand].filter(Boolean).join(' · ') || '—'} />
+            {a.serialNumber && <SheetInfo label="Nº de série" value={a.serialNumber} />}
+          </dl>
+        )}
+        {d.already && (
+          <p className="mt-3 rounded-xl bg-success/10 text-success text-xs font-semibold p-2.5">
+            Já conferido por {d.already.by} · {fmtDateTime(d.already.at)}. Confirmar sem mudar nada não registra de novo.
+          </p>
+        )}
 
         <div className="space-y-4 mt-5">
           {!a && (
@@ -481,12 +531,8 @@ const CheckSheet: React.FC<{ draft: Draft | null; locations: string[]; onClose: 
               <Input value={d.description} onChange={e => set({ description: e.target.value })} placeholder="Ex.: impressora térmica, cadeira azul…" autoFocus />
             </Field>
           )}
-          <Field label="Onde foi encontrado">
-            <Input list="rooms-sheet" value={d.location} onChange={e => set({ location: e.target.value })} />
-            <datalist id="rooms-sheet">{locations.map(l => <option key={l} value={l} />)}</datalist>
-          </Field>
-          <Field label="Estado de conservação">
-            <div className="grid grid-cols-5 gap-1.5" role="radiogroup">
+          <Field label="Estado do bem" hint={changedCondition ? 'Diferente do cadastro: vira uma pendência para o gerente decidir.' : 'Toque em outro estado se o bem estiver diferente.'}>
+            <div className="grid grid-cols-5 gap-1.5" role="radiogroup" aria-label="Estado do bem">
               {CONSERVATION_ORDER.map(c => (
                 <button key={c} type="button" role="radio" aria-checked={d.condition === c} onClick={() => set({ condition: c })}
                   className={cn('rounded-xl border px-1 py-2.5 text-xs font-bold transition-colors', d.condition === c ? 'bg-primary text-primary-foreground border-primary' : 'hover:bg-accent')}>
@@ -495,7 +541,11 @@ const CheckSheet: React.FC<{ draft: Draft | null; locations: string[]; onClose: 
               ))}
             </div>
           </Field>
-          <Field label="Responsável encontrado (opcional)" hint="Deixe em branco se não verificou.">
+          <Field label="Onde está">
+            <Input list="rooms-sheet" value={d.location} onChange={e => set({ location: e.target.value })} />
+            <datalist id="rooms-sheet">{locations.map(l => <option key={l} value={l} />)}</datalist>
+          </Field>
+          <Field label="Com quem está (opcional)" hint="Deixe em branco se não verificou.">
             <Input value={d.responsible} onChange={e => set({ responsible: e.target.value })} placeholder={a?.responsibleName || ''} />
           </Field>
           <Field label="Observações">
@@ -509,12 +559,19 @@ const CheckSheet: React.FC<{ draft: Draft | null; locations: string[]; onClose: 
         <div className="mt-6 flex gap-2">
           <Button variant="outline" size="xl" className="px-4" onClick={onClose}>Cancelar</Button>
           <Button size="xl" className="flex-1 min-w-0" disabled={saving} onClick={async () => { setSaving(true); try { await onSave(d); } finally { setSaving(false); } }}>
-            {saving ? <Loader2 className="animate-spin" /> : <Check />} {d.editing ? 'Salvar correção' : <>Confirmar<span className="hidden sm:inline"> conferência</span></>}
+            {saving ? <Loader2 className="animate-spin" /> : <Check />} {d.editing ? 'Salvar correção' : 'Confirmar conferência'}
           </Button>
         </div>
       </SheetContent>
     </Sheet>
   );
 };
+
+const SheetInfo: React.FC<{ label: string; value: string }> = ({ label, value }) => (
+  <div className="min-w-0">
+    <dt className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">{label}</dt>
+    <dd className="text-sm font-semibold truncate">{value}</dd>
+  </div>
+);
 
 export default Conferencia;

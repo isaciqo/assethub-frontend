@@ -53,6 +53,11 @@ export const Scanner: React.FC<Props> = ({ active, onDetected, pickOcrCandidate,
   const [torchAvailable, setTorchAvailable] = useState(false);
   const [ocrBusy, setOcrBusy] = useState(false);
   const [flash, setFlash] = useState(false);
+  const [starting, setStarting] = useState(false);
+  // A tela de conferência recria onDetected a cada bem conferido e a cada
+  // atualização da lista; guardar em ref evita reiniciar a câmera por isso.
+  const onDetectedRef = useRef(onDetected);
+  useEffect(() => { onDetectedRef.current = onDetected; }, [onDetected]);
   // Outra aba, câmera de foto ou app em segundo plano: a leitura para e volta
   // sozinha quando a tela reaparece.
   const [visible, setVisible] = useState(() => document.visibilityState === 'visible');
@@ -70,43 +75,59 @@ export const Scanner: React.FC<Props> = ({ active, onDetected, pickOcrCandidate,
     lastRef.current = { code, at: now };
     setFlash(true);
     setTimeout(() => setFlash(false), 220);
-    onDetected(code, method);
-  }, [onDetected]);
+    onDetectedRef.current(code, method);
+  }, []);
 
   useEffect(() => {
     if (!reading) return undefined;
     let cancelled = false;
+    let retry: ReturnType<typeof setTimeout> | undefined;
     setError(null);
-    const reader = new BrowserMultiFormatReader(hints, { delayBetweenScanAttempts: 120 });
-    reader
-      .decodeFromConstraints(
-        { video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } } },
-        videoRef.current!,
-        result => {
-          if (!result || cancelled) return;
-          const format = result.getBarcodeFormat();
-          emit(extractCode(result.getText()), format === BarcodeFormat.QR_CODE || format === BarcodeFormat.DATA_MATRIX ? 'qr' : 'barcode');
-        },
-      )
-      .then(controls => {
-        if (cancelled) { controls.stop(); return; }
-        controlsRef.current = controls;
-        setTorchAvailable(!!controls.switchTorch);
-      })
-      .catch(err => {
-        const name = err?.name || '';
-        setError(
-          name === 'NotAllowedError' ? 'Permissão da câmera negada. Libere o acesso nas configurações do navegador.'
-            : name === 'NotFoundError' ? 'Nenhuma câmera encontrada neste aparelho.'
-              : !window.isSecureContext ? 'A câmera exige conexão segura (https ou localhost).'
-                : 'Não foi possível abrir a câmera.',
-        );
-      });
+    setStarting(true);
+    const start = (attempt: number) => {
+      const reader = new BrowserMultiFormatReader(hints, { delayBetweenScanAttempts: 120 });
+      reader
+        .decodeFromConstraints(
+          { video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } } },
+          videoRef.current!,
+          result => {
+            if (!result || cancelled) return;
+            const format = result.getBarcodeFormat();
+            emit(extractCode(result.getText()), format === BarcodeFormat.QR_CODE || format === BarcodeFormat.DATA_MATRIX ? 'qr' : 'barcode');
+          },
+        )
+        .then(controls => {
+          if (cancelled) { controls.stop(); return; }
+          controlsRef.current = controls;
+          setTorchAvailable(!!controls.switchTorch);
+          setStarting(false);
+        })
+        .catch(err => {
+          if (cancelled) return;
+          const name = err?.name || '';
+          // Ao reabrir logo depois de fechar, o aparelho às vezes ainda não
+          // soltou a câmera: tenta de novo antes de mostrar erro.
+          if (name !== 'NotAllowedError' && name !== 'NotFoundError' && window.isSecureContext && attempt < 3) {
+            retry = setTimeout(() => start(attempt + 1), 400 * (attempt + 1));
+            return;
+          }
+          setStarting(false);
+          setError(
+            name === 'NotAllowedError' ? 'Permissão da câmera negada. Libere o acesso nas configurações do navegador.'
+              : name === 'NotFoundError' ? 'Nenhuma câmera encontrada neste aparelho.'
+                : !window.isSecureContext ? 'A câmera exige conexão segura (https ou localhost).'
+                  : 'Não foi possível abrir a câmera.',
+          );
+        });
+    };
+    start(0);
     return () => {
       cancelled = true;
+      clearTimeout(retry);
       controlsRef.current?.stop();
       controlsRef.current = null;
       setTorch(false);
+      setStarting(false);
     };
   }, [reading, emit]);
 
@@ -158,6 +179,13 @@ export const Scanner: React.FC<Props> = ({ active, onDetected, pickOcrCandidate,
             <div className="absolute inset-x-2 top-2 h-0.5 bg-urucum/80 shadow-[0_0_12px_hsl(var(--urucum))] animate-scan-line" />
           </div>
           <div className={cn('pointer-events-none absolute inset-0 transition-colors duration-200', flash ? 'bg-success/30' : 'bg-transparent')} />
+          {starting && (
+            <div className="pointer-events-none absolute inset-0 grid place-items-center text-white/85">
+              <div className="flex items-center gap-2 text-sm font-semibold bg-black/45 rounded-full px-4 py-2 backdrop-blur">
+                <Loader2 className="h-4 w-4 animate-spin" /> Abrindo a câmera…
+              </div>
+            </div>
+          )}
           <div className="absolute bottom-3 inset-x-3 flex items-center justify-between gap-2">
             <span className="text-[11px] font-semibold text-white/85 bg-black/45 rounded-full px-3 py-1 backdrop-blur">
               Aponte para o QR, código de barras ou plaqueta
