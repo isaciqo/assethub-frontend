@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { BrowserMultiFormatReader, type IScannerControls } from '@zxing/browser';
 import { BarcodeFormat, DecodeHintType } from '@zxing/library';
-import { CameraOff, Flashlight, Loader2, ScanText } from 'lucide-react';
+import { CameraOff, Flashlight, Loader2, ScanText, ZoomIn } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import type { CheckMethod } from '@/types';
@@ -54,6 +54,11 @@ export const Scanner: React.FC<Props> = ({ active, onDetected, pickOcrCandidate,
   const [ocrBusy, setOcrBusy] = useState(false);
   const [flash, setFlash] = useState(false);
   const [starting, setStarting] = useState(false);
+  // Zoom: óptico (pela câmera) quando o aparelho permite; senão, digital —
+  // o centro do quadro é ampliado antes de tentar ler, não só na tela.
+  const trackRef = useRef<MediaStreamTrack | null>(null);
+  const [zoom, setZoom] = useState(1);
+  const [hwZoom, setHwZoom] = useState<{ min: number; max: number } | null>(null);
   // A tela de conferência recria onDetected a cada bem conferido e a cada
   // atualização da lista; guardar em ref evita reiniciar a câmera por isso.
   const onDetectedRef = useRef(onDetected);
@@ -101,6 +106,13 @@ export const Scanner: React.FC<Props> = ({ active, onDetected, pickOcrCandidate,
           controlsRef.current = controls;
           setTorchAvailable(!!controls.switchTorch);
           setStarting(false);
+          setZoom(1);
+          const track = (videoRef.current?.srcObject as MediaStream | null)?.getVideoTracks()[0] || null;
+          trackRef.current = track;
+          const caps = (track?.getCapabilities?.() || {}) as MediaTrackCapabilities & { zoom?: { min: number; max: number }; focusMode?: string[] };
+          setHwZoom(caps.zoom && caps.zoom.max > caps.zoom.min ? { min: caps.zoom.min, max: caps.zoom.max } : null);
+          // Foco contínuo ajuda a ler barras finas de perto.
+          if (caps.focusMode?.includes('continuous')) track?.applyConstraints({ advanced: [{ focusMode: 'continuous' } as MediaTrackConstraintSet] }).catch(() => {});
         })
         .catch(err => {
           if (cancelled) return;
@@ -126,10 +138,43 @@ export const Scanner: React.FC<Props> = ({ active, onDetected, pickOcrCandidate,
       clearTimeout(retry);
       controlsRef.current?.stop();
       controlsRef.current = null;
+      trackRef.current = null;
       setTorch(false);
       setStarting(false);
     };
   }, [reading, emit]);
+
+  // Níveis do botão de zoom: 1×, 2× e 3× (o óptico vai até onde a câmera deixa).
+  const levels = hwZoom ? [...new Set([1, 2, 3].map(z => Math.min(Math.max(z, hwZoom.min), hwZoom.max)))] : [1, 2, 3];
+  const nextZoom = () => {
+    const next = levels[(levels.indexOf(zoom) + 1) % levels.length] ?? 1;
+    setZoom(next);
+    if (hwZoom) trackRef.current?.applyConstraints({ advanced: [{ zoom: next } as MediaTrackConstraintSet] }).catch(() => setHwZoom(null));
+  };
+
+  // Zoom digital: além da leitura do quadro inteiro, tenta ler o centro ampliado.
+  useEffect(() => {
+    if (!reading || hwZoom || zoom === 1) return undefined;
+    const reader = new BrowserMultiFormatReader(hints);
+    const canvas = document.createElement('canvas');
+    const t = setInterval(() => {
+      const video = videoRef.current;
+      if (!video || !video.videoWidth) return;
+      const w = video.videoWidth;
+      const h = video.videoHeight;
+      const cw = w / zoom;
+      const ch = h / zoom;
+      canvas.width = w;
+      canvas.height = h;
+      canvas.getContext('2d')!.drawImage(video, (w - cw) / 2, (h - ch) / 2, cw, ch, 0, 0, w, h);
+      try {
+        const result = reader.decodeFromCanvas(canvas);
+        const format = result.getBarcodeFormat();
+        emit(extractCode(result.getText()), format === BarcodeFormat.QR_CODE || format === BarcodeFormat.DATA_MATRIX ? 'qr' : 'barcode');
+      } catch { /* nada no quadro ainda */ }
+    }, 250);
+    return () => clearInterval(t);
+  }, [reading, hwZoom, zoom, emit]);
 
   const toggleTorch = async () => {
     try {
@@ -148,8 +193,9 @@ export const Scanner: React.FC<Props> = ({ active, onDetected, pickOcrCandidate,
       const canvas = document.createElement('canvas');
       const w = video.videoWidth;
       const h = video.videoHeight;
-      const cw = w * 0.8;
-      const ch = h * 0.35;
+      const z = hwZoom ? 1 : zoom;
+      const cw = (w * 0.8) / z;
+      const ch = (h * 0.35) / z;
       canvas.width = cw;
       canvas.height = ch;
       const ctx = canvas.getContext('2d')!;
@@ -172,7 +218,7 @@ export const Scanner: React.FC<Props> = ({ active, onDetected, pickOcrCandidate,
 
   return (
     <div className={cn('relative overflow-hidden rounded-3xl bg-black aspect-[4/3] sm:aspect-video', className)}>
-      <video ref={videoRef} className="absolute inset-0 h-full w-full object-cover" muted playsInline />
+      <video ref={videoRef} className="absolute inset-0 h-full w-full object-cover transition-transform duration-200" style={!hwZoom && zoom > 1 ? { transform: `scale(${zoom})` } : undefined} muted playsInline />
       {active && !error && (
         <>
           <div className="pointer-events-none absolute inset-x-[12%] top-[18%] bottom-[18%] scan-frame">
@@ -191,6 +237,9 @@ export const Scanner: React.FC<Props> = ({ active, onDetected, pickOcrCandidate,
               Aponte para o QR, código de barras ou plaqueta
             </span>
             <div className="flex gap-2">
+              <Button type="button" size="icon" variant="secondary" className="rounded-full h-11 w-11 bg-white/85 font-bold" onClick={nextZoom} aria-label={`Zoom ${zoom}×, tocar para mudar`}>
+                {zoom === 1 ? <ZoomIn /> : <span className="text-sm tabular">{Number(zoom.toFixed(1))}×</span>}
+              </Button>
               {torchAvailable && (
                 <Button type="button" size="icon" variant="secondary" className="rounded-full h-11 w-11 bg-white/85" onClick={toggleTorch} aria-label={torch ? 'Desligar lanterna' : 'Ligar lanterna'}>
                   <Flashlight className={torch ? 'text-ochre' : ''} />
