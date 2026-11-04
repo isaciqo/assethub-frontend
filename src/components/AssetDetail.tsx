@@ -1,20 +1,29 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeftRight, History, Pencil, QrCode } from 'lucide-react';
+import { ArrowLeftRight, FileText, History, Loader2, Pencil, QrCode } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { AssetStatusBadge, CheckStatusBadge, ConservationBadge, MovementStatusBadge, Spinner } from '@/components/common';
 import { useAssetDetail } from '@/hooks/queries';
+import { openFile } from '@/services/http';
+import { toast } from '@/components/ui/sonner';
 import { useAuth } from '@/lib/auth-context';
 import { AssetFormDialog } from '@/components/AssetFormDialog';
 import { ASSET_EVENT_LABEL, FIELD_LABEL } from '@/lib/labels';
 import { fmtDate, fmtDateTime, fmtMoney } from '@/lib/format';
-import type { AssetDetail as Detail } from '@/types';
+import type { ApiError, AssetDetail as Detail } from '@/types';
 
 export const AssetDetailBody: React.FC<{ data: Detail }> = ({ data }) => {
   const { asset: a, unit, events, checks, movements } = data;
   const { can } = useAuth();
   const [editing, setEditing] = useState(false);
+  const [reporting, setReporting] = useState(false);
+  // Relatório resumo do bem em PDF: situação atual, pendências, conferências,
+  // movimentações e linha do tempo.
+  const report = () => {
+    setReporting(true);
+    openFile(`/assets/${a.id}/report.pdf`).catch((e: ApiError) => toast.error(e.message)).finally(() => setReporting(false));
+  };
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap gap-1.5"><AssetStatusBadge value={a.status} /><ConservationBadge value={a.conservationStatus} /></div>
@@ -30,6 +39,7 @@ export const AssetDetailBody: React.FC<{ data: Detail }> = ({ data }) => {
       <div className="flex flex-wrap gap-2">
         <Button asChild size="sm" variant="outline"><Link to={`/movimentacoes/nova?asset=${a.id}`}><ArrowLeftRight /> Movimentar</Link></Button>
         <Button asChild size="sm" variant="outline"><Link to={`/etiquetas?codes=${encodeURIComponent(a.code)}`}><QrCode /> Etiqueta</Link></Button>
+        <Button size="sm" variant="outline" disabled={reporting} onClick={report}>{reporting ? <Loader2 className="animate-spin" /> : <FileText />} Relatório (PDF)</Button>
         {can('admin', 'gestor') && <Button size="sm" variant="outline" onClick={() => setEditing(true)}><Pencil /> Editar / baixa</Button>}
       </div>
       <AssetFormDialog open={editing} onOpenChange={setEditing} asset={a} />
