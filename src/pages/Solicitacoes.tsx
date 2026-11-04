@@ -231,7 +231,7 @@ const RespostaDoSetor: React.FC<{ r: AssetRequestDetail; onDone: () => void }> =
   const respond = useMutation({
     mutationFn: (decision: 'enviar' | 'negar') => requestsService.respond(r.id, { decision, asset_ids: decision === 'enviar' ? picked : [], note: note.trim() }),
     onSuccess: (_, decision) => {
-      toast.success(decision === 'enviar' ? `Pedido atendido: envie o bem para ${r.requestedByName} pela sua Minha área` : `${r.requestedByName} foi avisado(a) de que o setor não tem o item`);
+      toast.success(decision === 'enviar' ? `Pedido atendido: envie o bem para ${r.requestedByName} pela sua área` : `${r.requestedByName} foi avisado(a) de que o setor não tem o item`);
       onDone();
     },
     onError: (e: ApiError) => toast.error(e.message),
