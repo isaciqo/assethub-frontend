@@ -36,6 +36,11 @@ async function getOcrWorker() {
   return ocrWorker;
 }
 
+// Botões sobre o vídeo: fundo branco sólido e ícone escuro para aparecerem em
+// qualquer imagem; ligado (zoom > 1×, lanterna acesa) fica na cor de destaque.
+const CAM_BTN = 'rounded-full h-11 bg-white text-[#1E2130] shadow-lg ring-1 ring-black/15 hover:bg-white [&_svg]:size-5 [&_svg]:stroke-[2.5]';
+const CAM_BTN_ON = 'bg-urucum text-white ring-white/60 hover:bg-urucum';
+
 interface Props {
   active: boolean;
   onDetected: (code: string, method: CheckMethod) => void;
@@ -237,15 +242,15 @@ export const Scanner: React.FC<Props> = ({ active, onDetected, pickOcrCandidate,
               Aponte para o QR, código de barras ou plaqueta
             </span>
             <div className="flex gap-2">
-              <Button type="button" size="icon" variant="secondary" className="rounded-full h-11 w-11 bg-white/85 font-bold" onClick={nextZoom} aria-label={`Zoom ${zoom}×, tocar para mudar`}>
+              <Button type="button" size="icon" className={cn(CAM_BTN, 'w-11 font-extrabold', zoom > 1 && CAM_BTN_ON)} onClick={nextZoom} aria-label={`Zoom ${zoom}×, tocar para mudar`}>
                 {zoom === 1 ? <ZoomIn /> : <span className="text-sm tabular">{Number(zoom.toFixed(1))}×</span>}
               </Button>
               {torchAvailable && (
-                <Button type="button" size="icon" variant="secondary" className="rounded-full h-11 w-11 bg-white/85" onClick={toggleTorch} aria-label={torch ? 'Desligar lanterna' : 'Ligar lanterna'}>
-                  <Flashlight className={torch ? 'text-ochre' : ''} />
+                <Button type="button" size="icon" className={cn(CAM_BTN, 'w-11', torch && CAM_BTN_ON)} onClick={toggleTorch} aria-label={torch ? 'Desligar lanterna' : 'Ligar lanterna'}>
+                  <Flashlight />
                 </Button>
               )}
-              <Button type="button" variant="secondary" className="rounded-full h-11 bg-white/90 text-foreground" onClick={readPlate} disabled={ocrBusy} aria-label="Ler número da plaqueta">
+              <Button type="button" className={cn(CAM_BTN, 'px-3 font-bold')} onClick={readPlate} disabled={ocrBusy} aria-label="Ler número da plaqueta">
                 {ocrBusy ? <Loader2 className="animate-spin" /> : <ScanText />}
                 <span className="hidden sm:inline">{ocrBusy ? 'Lendo…' : 'Ler plaqueta'}</span>
               </Button>
