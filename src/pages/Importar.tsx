@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils';
 import { toast } from '@/components/ui/sonner';
 import type { ApiError, ImportReport } from '@/types';
 
-const FIELDS = ['code', 'description', 'category', 'brand', 'serial_number', 'unit', 'location', 'room', 'responsible_name', 'conservation_status', 'acquisition_date', 'value', 'notes'];
+const FIELDS = ['code', 'description', 'category', 'brand', 'serial_number', 'unit', 'location', 'room', 'responsible_name', 'conservation_status', 'acquisition_date', 'value', 'invoice_number', 'purchase_process', 'notes'];
 const REQUIRED = ['code', 'description'];
 
 // Importação em 3 passos: arquivo → prévia (nada gravado) → confirmar.

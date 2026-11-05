@@ -71,6 +71,8 @@ const Etiquetas: React.FC = () => {
   const [modelo, setModelo] = useState<Modelo>(() => { try { return (localStorage.getItem(MODEL_KEY) as Modelo) || 'tjpa'; } catch { return 'tjpa'; } });
   useEffect(() => { try { localStorage.setItem(MODEL_KEY, modelo); } catch { /* sem armazenamento: só não lembra a escolha */ } }, [modelo]);
   const codes = params.get('codes') || '';
+  // Cópias de cada etiqueta (uma para o bem, outra de reserva/para a pasta do processo).
+  const [copies, setCopies] = useState(() => Math.min(3, Math.max(1, Number(params.get('copias')) || 1)));
   const { data: facets } = useFacets(unitId || undefined);
   const { data, isLoading } = useAssets({ unit_id: unitId || undefined, location: location || undefined, search: codes || undefined, pageSize: '300' });
   const unitName = useMemo(() => Object.fromEntries(units.map(u => [u.id, u.code])), [units]);
@@ -82,7 +84,7 @@ const Etiquetas: React.FC = () => {
       <PageHeader
         title="Etiquetas"
         subtitle="Imprima em papel adesivo (A4, 3 colunas) e cole nos bens. A câmera do app lê o código de barras e o QR."
-        actions={<Button onClick={() => window.print()} disabled={!data?.items.length}><Printer /> Imprimir {data?.items.length || 0}</Button>}
+        actions={<Button onClick={() => window.print()} disabled={!data?.items.length}><Printer /> Imprimir {(data?.items.length || 0) * copies}</Button>}
       />
       </div>
       <div className="card-clay p-3 grid sm:grid-cols-3 gap-3 mb-4 no-print">
@@ -102,14 +104,19 @@ const Etiquetas: React.FC = () => {
           <option value="tjpa">Modelo TJPA (código de barras)</option>
           <option value="qr">QR Code (abre a ficha no celular)</option>
         </NativeSelect>
+        <NativeSelect value={String(copies)} onChange={e => setCopies(Number(e.target.value))} aria-label="Cópias de cada etiqueta">
+          <option value="1">1 etiqueta de cada bem</option>
+          <option value="2">2 etiquetas de cada bem</option>
+          <option value="3">3 etiquetas de cada bem</option>
+        </NativeSelect>
       </div>
       {!unitId && !codes ? (
         <EmptyState icon={Tag} title="Escolha uma comarca" description="As etiquetas são geradas para os bens da comarca (ou de um setor)." />
       ) : isLoading ? <Spinner /> : (
         <div className="labels-grid grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {data?.items.map(a => (modelo === 'tjpa'
-            ? <LabelTjpa key={a.id} asset={a} />
-            : <LabelQr key={a.id} asset={a} unitName={unitName[a.unitId] || ''} />))}
+          {data?.items.flatMap(a => Array.from({ length: copies }, (_, i) => (modelo === 'tjpa'
+            ? <LabelTjpa key={`${a.id}-${i}`} asset={a} />
+            : <LabelQr key={`${a.id}-${i}`} asset={a} unitName={unitName[a.unitId] || ''} />)))}
         </div>
       )}
     </div>

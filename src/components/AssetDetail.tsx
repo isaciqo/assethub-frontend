@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeftRight, FileText, History, Loader2, Pencil, QrCode } from 'lucide-react';
+import { ArrowLeftRight, FileText, History, Image as ImageIcon, Loader2, Paperclip, Pencil, QrCode } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
-import { AssetStatusBadge, CheckStatusBadge, ConservationBadge, MovementStatusBadge, Spinner } from '@/components/common';
+import { AssetStatusBadge, CheckStatusBadge, ConservationBadge, EvidenceImage, MovementStatusBadge, Spinner } from '@/components/common';
 import { useAssetDetail } from '@/hooks/queries';
 import { openFile } from '@/services/http';
 import { toast } from '@/components/ui/sonner';
@@ -14,23 +14,33 @@ import { fmtDate, fmtDateTime, fmtMoney } from '@/lib/format';
 import type { ApiError, AssetDetail as Detail } from '@/types';
 
 export const AssetDetailBody: React.FC<{ data: Detail }> = ({ data }) => {
-  const { asset: a, unit, events, checks, movements } = data;
+  const { asset: a, unit, events, checks, movements, lastPhoto, attachments = [] } = data;
   const { can } = useAuth();
   const [editing, setEditing] = useState(false);
   const [reporting, setReporting] = useState(false);
-  // Relatório resumo do bem em PDF: situação atual, pendências, conferências,
-  // movimentações e linha do tempo.
+  // Relatório resumo do bem em PDF: situação atual (com a última foto), pendências,
+  // documentos anexados, conferências, movimentações e linha do tempo.
   const report = () => {
     setReporting(true);
     openFile(`/assets/${a.id}/report.pdf`).catch((e: ApiError) => toast.error(e.message)).finally(() => setReporting(false));
   };
+  const openAttachment = (id: string) => openFile(`/evidences/${id}`).catch((e: ApiError) => toast.error(e.message));
   return (
     <div className="space-y-5">
+      {lastPhoto && (
+        <figure>
+          <EvidenceImage id={lastPhoto.evidenceId} alt={`Última foto do bem ${a.code}`} className="w-full h-48 rounded-2xl object-contain bg-muted" />
+          <figcaption className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
+            <ImageIcon className="h-3.5 w-3.5" /> Última foto · {lastPhoto.source} · {fmtDateTime(lastPhoto.at)}{lastPhoto.by ? ` · ${lastPhoto.by}` : ''}
+          </figcaption>
+        </figure>
+      )}
       <div className="flex flex-wrap gap-1.5"><AssetStatusBadge value={a.status} /><ConservationBadge value={a.conservationStatus} /></div>
       <dl className="grid grid-cols-2 gap-3 text-sm">
         {[
           ['Comarca', unit?.name], ['Setor', a.location], ['Sala', a.room], ['Responsável', a.responsibleName], ['Categoria', a.category],
           ['Marca/modelo', a.brand], ['Nº de série', a.serialNumber], ['Aquisição', fmtDate(a.acquisitionDate)], ['Valor', fmtMoney(a.value)],
+          ['Nota fiscal', a.invoiceNumber], ['Processo de compra', a.purchaseProcess],
           ['Última conferência', fmtDateTime(a.lastCheckedAt)],
         ].map(([k, v]) => (
           <div key={k as string}><dt className="text-xs text-muted-foreground">{k}</dt><dd className="font-semibold break-words">{v || '—'}</dd></div>
@@ -43,6 +53,20 @@ export const AssetDetailBody: React.FC<{ data: Detail }> = ({ data }) => {
         {can('admin', 'gestor') && <Button size="sm" variant="outline" onClick={() => setEditing(true)}><Pencil /> Editar / baixa</Button>}
       </div>
       <AssetFormDialog open={editing} onOpenChange={setEditing} asset={a} />
+
+      {attachments.length > 0 && (
+        <section>
+          <h3 className="font-display font-bold mb-2 flex items-center gap-2"><Paperclip className="h-4 w-4 text-primary" /> Documentos anexados</h3>
+          <ul className="space-y-1.5">
+            {attachments.map(ev => (
+              <li key={ev.id}><button type="button" onClick={() => openAttachment(ev.id)} className="w-full flex items-center justify-between gap-2 rounded-xl border px-3 py-2 text-sm text-left hover:bg-accent">
+                <span className="flex items-center gap-2 min-w-0">{ev.kind === 'documento' ? <FileText className="h-4 w-4 shrink-0 text-primary" /> : <ImageIcon className="h-4 w-4 shrink-0 text-primary" />}<span className="font-semibold truncate">{ev.fileName || 'Anexo'}</span></span>
+                <span className="text-xs text-muted-foreground shrink-0">{ev.stage === 'baixa' ? 'Baixa' : ev.stage === 'nao_localizado' ? 'Não localizado' : 'Ajuste'} · {fmtDate(ev.createdAt)}</span>
+              </button></li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {movements.length > 0 && (
         <section>

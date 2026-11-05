@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Field, NativeSelect } from '@/components/common';
+import { PhotoPicker } from '@/components/PhotoPicker';
 import { useFacets, useUnits } from '@/hooks/queries';
 import { assetsService } from '@/services/api';
 import { CONSERVATION, CONSERVATION_ORDER } from '@/lib/labels';
@@ -14,8 +15,8 @@ import { toast } from '@/components/ui/sonner';
 import type { ApiError, Asset, Conservation } from '@/types';
 
 // Cadastro avulso (chegada de um bem novo) e ajuste administrativo de um bem
-// existente — estado, setor, sala, responsável e baixa. Toda alteração vira evento
-// na linha do tempo do bem (backend: UpdateAssetOperation).
+// existente — estado, setor, sala, responsável e baixa (com anexo: BO, laudo).
+// Toda alteração vira evento na linha do tempo do bem (backend: UpdateAssetOperation).
 interface Props {
   open: boolean;
   onOpenChange: (v: boolean) => void;
@@ -25,7 +26,8 @@ interface Props {
 
 const empty = {
   code: '', description: '', category: '', brand: '', serial_number: '', unit_id: '', location: '', room: '',
-  responsible_name: '', conservation_status: 'novo' as Conservation, status: 'ativo', value: '', notes: '',
+  responsible_name: '', conservation_status: 'novo' as Conservation, status: 'ativo', value: '',
+  invoice_number: '', purchase_process: '', notes: '',
 };
 
 export const AssetFormDialog: React.FC<Props> = ({ open, onOpenChange, asset, onSaved }) => {
@@ -33,6 +35,7 @@ export const AssetFormDialog: React.FC<Props> = ({ open, onOpenChange, asset, on
   const qc = useQueryClient();
   const { data: units = [] } = useUnits();
   const [f, setF] = useState(empty);
+  const [files, setFiles] = useState<string[]>([]);
   const { data: facets } = useFacets(f.unit_id || undefined);
   const { data: sectorFacets } = useFacets(f.unit_id || undefined, f.location || undefined);
 
@@ -42,8 +45,10 @@ export const AssetFormDialog: React.FC<Props> = ({ open, onOpenChange, asset, on
       code: asset.code, description: asset.description, category: asset.category, brand: asset.brand,
       serial_number: asset.serialNumber, unit_id: asset.unitId, location: asset.location, room: asset.room || '',
       responsible_name: asset.responsibleName, conservation_status: asset.conservationStatus,
-      status: asset.status, value: asset.value != null ? String(asset.value) : '', notes: asset.notes,
+      status: asset.status, value: asset.value != null ? String(asset.value) : '',
+      invoice_number: asset.invoiceNumber || '', purchase_process: asset.purchaseProcess || '', notes: asset.notes,
     } : empty);
+    setFiles([]);
   }, [open, asset]);
 
   const set = (patch: Partial<typeof empty>) => setF(prev => ({ ...prev, ...patch }));
@@ -55,15 +60,20 @@ export const AssetFormDialog: React.FC<Props> = ({ open, onOpenChange, asset, on
       const common = {
         description: f.description, category: f.category, brand: f.brand, serial_number: f.serial_number,
         location: f.location, room: f.room, responsible_name: f.responsible_name, conservation_status: f.conservation_status,
-        value, notes: f.notes,
+        value, invoice_number: f.invoice_number, purchase_process: f.purchase_process, notes: f.notes,
       };
+      const attachments = files.map((data_url, i) => ({
+        data_url,
+        file_name: `${asset?.code}-${f.status === 'baixado' ? 'baixa' : 'anexo'}-${i + 1}.${data_url.startsWith('data:application/pdf') ? 'pdf' : 'jpg'}`,
+      }));
       return editing
-        ? assetsService.update(asset!.id, { ...common, ...(asset!.activeMovementId ? {} : { status: f.status }) })
+        ? assetsService.update(asset!.id, { ...common, ...(asset!.activeMovementId ? {} : { status: f.status }), ...(attachments.length && { attachments }) })
         : assetsService.create({ ...common, code: f.code, unit_id: f.unit_id });
     },
     onSuccess: saved => {
       qc.invalidateQueries({ queryKey: ['assets'] });
       qc.invalidateQueries({ queryKey: ['asset'] });
+      qc.invalidateQueries({ queryKey: ['asset-code'] });
       qc.invalidateQueries({ queryKey: ['facets'] });
       qc.invalidateQueries({ queryKey: ['units'] });
       qc.invalidateQueries({ queryKey: ['dashboard'] });
@@ -109,6 +119,8 @@ export const AssetFormDialog: React.FC<Props> = ({ open, onOpenChange, asset, on
           <Field label="Marca/modelo" htmlFor="af-brand"><Input id="af-brand" value={f.brand} onChange={e => set({ brand: e.target.value })} /></Field>
           <Field label="Nº de série" htmlFor="af-serial"><Input id="af-serial" value={f.serial_number} onChange={e => set({ serial_number: e.target.value })} /></Field>
           <Field label="Valor (R$)" htmlFor="af-value"><Input id="af-value" inputMode="decimal" value={f.value} onChange={e => set({ value: e.target.value })} placeholder="1.890,00" /></Field>
+          <Field label="Nota fiscal" htmlFor="af-nf"><Input id="af-nf" value={f.invoice_number} onChange={e => set({ invoice_number: e.target.value })} placeholder="Ex.: NF 000.123.456" /></Field>
+          <Field label="Processo de compra" htmlFor="af-proc"><Input id="af-proc" value={f.purchase_process} onChange={e => set({ purchase_process: e.target.value })} placeholder="Ex.: PA-2024/12345" /></Field>
           <Field label="Setor" htmlFor="af-loc" hint="Vara, gabinete, secretaria…">
             <Input id="af-loc" list="af-locs" value={f.location} onChange={e => set({ location: e.target.value })} placeholder="Ex.: 1ª Vara Cível" />
             <datalist id="af-locs">{unitLocations.map(l => <option key={l} value={l} />)}</datalist>
@@ -142,8 +154,13 @@ export const AssetFormDialog: React.FC<Props> = ({ open, onOpenChange, asset, on
             </Field>
           )}
           <Field label="Observações" htmlFor="af-notes" className={editing ? '' : 'sm:col-span-2'}>
-            <Textarea id="af-notes" rows={2} value={f.notes} onChange={e => set({ notes: e.target.value })} placeholder={editing ? 'Motivo do ajuste (fica no histórico)' : 'Nota fiscal, processo de compra…'} />
+            <Textarea id="af-notes" rows={2} value={f.notes} onChange={e => set({ notes: e.target.value })} placeholder={editing ? (f.status === 'baixado' ? 'Motivo da baixa (ex.: furto, BO nº 123/2026)' : 'Motivo do ajuste (fica no histórico)') : 'Garantia, contrato…'} />
           </Field>
+          {editing && (f.status === 'baixado' || f.status === 'nao_localizado') && (
+            <Field label={f.status === 'baixado' ? 'Anexos da baixa' : 'Anexos'} className="sm:col-span-2" hint="Boletim de ocorrência, laudo, termo de descarte (PDF ou foto). Ficam no histórico e no relatório do bem.">
+              <PhotoPicker value={files} onChange={setFiles} max={3} allowPdf label="BO ou laudo" />
+            </Field>
+          )}
         </div>
 
         <DialogFooter>

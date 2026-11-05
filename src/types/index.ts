@@ -78,6 +78,9 @@ export interface Asset {
   status: AssetStatus;
   acquisitionDate: string | null;
   value: number | null;
+  // Origem da compra.
+  invoiceNumber: string;
+  purchaseProcess: string;
   notes: string;
   lastCheckedAt: string | null;
   lastInventoryId: string | null;
@@ -123,6 +126,10 @@ export interface InventoryCheck {
 export interface AssetDetail {
   asset: Asset;
   unit: Unit | null;
+  // Última foto do bem (conferência, movimentação ou anexo).
+  lastPhoto: { evidenceId: string; at: string | null; by: string; source: string } | null;
+  // Documentos anexados ao bem (BO, laudo da baixa…).
+  attachments: Evidence[];
   events: AssetEvent[];
   checks: InventoryCheck[];
   movements: Movement[];
@@ -274,6 +281,7 @@ export interface Evidence {
   stage: string;
   kind: 'foto' | 'assinatura' | 'documento';
   mime: string;
+  fileName?: string;
   size: number;
   sha256: string;
   description: string;

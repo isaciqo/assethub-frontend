@@ -104,6 +104,8 @@ export const FIELD_LABEL: Record<string, string> = {
   conservation_status: 'Estado de conservação',
   acquisition_date: 'Data de aquisição',
   value: 'Valor',
+  invoice_number: 'Nota fiscal',
+  purchase_process: 'Processo de compra',
   notes: 'Observações',
   status: 'Situação',
 };
