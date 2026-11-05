@@ -248,5 +248,6 @@
 
 @media print {
   .no-print { display: none !important; }
-  body { background: white; }
+  /* Papel branco: o fundo de areia da tela não vai para a impressão. */
+  html, body, #root, .bg-background { background: white !important; }
 }
