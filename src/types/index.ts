@@ -365,6 +365,9 @@ export interface PossessionCheck {
   userId: string;
   userName: string;
   requestedByName: string;
+  // Validação aberta por causa de um inventário (vazio = pedida pelo gerente).
+  inventoryId: string | null;
+  inventoryNumber: string;
   status: 'pendente' | 'respondida';
   items: { assetId: string; code: string; description: string; location: string; hasIt: boolean | null; note: string }[];
   total: number;
@@ -391,9 +394,23 @@ export type MyTask =
 
 export interface RequestSource { unitId: string; unitName: string; sectors: Sector[] }
 
+// Inventário aberto que inclui bens da pessoa: aviso na Minha área.
+export interface MyInventoryNotice {
+  id: string;
+  number: string;
+  name: string;
+  unitName: string;
+  locations: string[];
+  startedAt: string | null;
+  startedByName: string;
+  myAssets: number;
+  validation: { id: string; status: 'pendente' | 'respondida'; answeredAt: string | null } | null;
+}
+
 export interface MyArea {
   assets: Asset[];
   tasks: MyTask[];
+  inventories?: MyInventoryNotice[];
 }
 
 export interface AssetFacets { categories: string[]; locations: string[]; rooms: string[]; brands: string[]; responsibles: string[] }

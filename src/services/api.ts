@@ -101,6 +101,7 @@ export const movementsService = {
 
 export const meService = {
   area: () => http.get<MyArea>('/me/area'),
+  startInventoryValidation: (inventoryId: string) => http.post<PossessionCheck>(`/me/inventories/${inventoryId}/validation`, {}),
   answer: (checkId: string, answers: { asset_id: string; has_it: boolean; note?: string }[]) =>
     http.post<PossessionCheck>(`/me/possession-checks/${checkId}/answer`, { answers }),
 };

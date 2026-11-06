@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { CircleCheck, ClipboardCheck, Inbox, Loader2, MapPin, PackageCheck, PackagePlus, Send, ShoppingCart, ThumbsDown, ThumbsUp } from 'lucide-react';
+import { CircleCheck, ClipboardCheck, ClipboardList, Inbox, Loader2, MapPin, PackageCheck, PackagePlus, Send, ShoppingCart, ThumbsDown, ThumbsUp } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,7 +16,7 @@ import { useAuth } from '@/lib/auth-context';
 import { fmtRelative } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { toast } from '@/components/ui/sonner';
-import type { ApiError, MyTask, PossessionCheck } from '@/types';
+import type { ApiError, MyInventoryNotice, MyTask, PossessionCheck } from '@/types';
 
 type HandoverTask = Extract<MyTask, { kind: 'enviar' | 'receber' }>;
 type RequestTask = Extract<MyTask, { kind: 'pedido_setor' | 'pedido_negado' }>;
@@ -42,6 +42,15 @@ const MinhaArea: React.FC = () => {
         <MeusPedidos />
       </div>
 
+      {(data.inventories || []).map(inv => (
+        <InventoryNotice
+          key={inv.id}
+          notice={inv}
+          pending={data.tasks.find((t): t is Extract<MyTask, { kind: 'validar' }> => t.kind === 'validar' && t.check.id === inv.validation?.id)?.check}
+          onValidate={setValidating}
+        />
+      ))}
+
       <section aria-labelledby="todo">
         <h2 id="todo" className="font-display text-lg font-bold flex items-center gap-2">
           Para fazer
@@ -59,7 +68,7 @@ const MinhaArea: React.FC = () => {
           <div className="mt-3 space-y-3">
             {data.tasks.map(t => (t.kind === 'validar'
               ? <ValidateCard key={t.check.id} check={t.check} onOpen={() => setValidating(t.check)} />
-              : t.kind === 'pedido_setor' || t.kind === 'pedido_negado'
+              : 'request' in t
                 ? <RequestCard key={t.request.id} task={t} onOpen={() => navigate(`/solicitacoes/${t.request.id}`)} />
                 : <HandoverCard key={t.movementId} task={t} onOpen={() => setHandover(t)} />))}
           </div>
@@ -142,11 +151,50 @@ const HandoverCard: React.FC<{ task: HandoverTask; onOpen: () => void }> = ({ ta
   );
 };
 
+// Aviso de inventário iniciado: a equipe vai conferir os bens no local, e a
+// pessoa já pode confirmar que os bens no nome dela estão com ela.
+const InventoryNotice: React.FC<{ notice: MyInventoryNotice; pending?: PossessionCheck; onValidate: (c: PossessionCheck) => void }> = ({ notice: n, pending, onValidate }) => {
+  const qc = useQueryClient();
+  const start = useMutation({
+    mutationFn: () => meService.startInventoryValidation(n.id),
+    onSuccess: check => { qc.invalidateQueries({ queryKey: ['me-area'] }); onValidate(check); },
+    onError: (e: ApiError) => toast.error(e.message),
+  });
+  const done = n.validation?.status === 'respondida';
+  const where = [n.unitName, n.locations.join(', ')].filter(Boolean).join(' · ');
+  return (
+    <section role="status" aria-label={`Inventário ${n.number} iniciado`} className={cn('rounded-2xl border-2 p-4 sm:p-5', done ? 'border-success/30 bg-success/5' : 'border-urucum bg-urucum/10')}>
+      <div className="flex items-start gap-3">
+        <span className={cn('h-11 w-11 shrink-0 rounded-xl grid place-items-center', done ? 'bg-success/15 text-success' : 'bg-urucum text-white')}>
+          {done ? <CircleCheck className="h-5 w-5" /> : <ClipboardList className="h-5 w-5" />}
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-xs font-bold uppercase tracking-wide text-urucum">Inventário iniciado · {n.number}</p>
+          <h2 className="font-display text-lg font-bold leading-tight mt-0.5">
+            {done ? 'Você já validou seus bens neste inventário' : `${n.myAssets === 1 ? 'Um bem seu está' : `${n.myAssets} bens seus estão`} neste inventário`}
+          </h2>
+          <p className="text-sm text-muted-foreground mt-1">
+            {n.startedByName || 'O gerente'} iniciou o inventário de {where}{n.startedAt ? ` ${fmtRelative(n.startedAt)}` : ''}.{' '}
+            {done
+              ? `Respostas enviadas ${fmtRelative(n.validation!.answeredAt)}. A equipe ainda pode passar conferindo os bens no local.`
+              : 'A equipe vai passar conferindo os bens no local. Você já pode validar agora: confirme, bem a bem, se ele está com você. O que não estiver vai para o gerente verificar.'}
+          </p>
+          {!done && (
+            <Button variant="urucum" className="mt-3" disabled={start.isPending} onClick={() => (pending ? onValidate(pending) : start.mutate())}>
+              {start.isPending ? <Loader2 className="animate-spin" /> : <ClipboardCheck />} {pending ? 'Continuar validação' : 'Validar meus bens'}
+            </Button>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+};
+
 const ValidateCard: React.FC<{ check: PossessionCheck; onOpen: () => void }> = ({ check, onOpen }) => (
   <TaskShell
     icon={ClipboardCheck}
-    title="Validar seus bens"
-    subtitle={`${check.requestedByName || 'O gerente'} pediu para você confirmar se ${check.total === 1 ? 'o bem ainda está' : `os ${check.total} bens ainda estão`} com você · ${fmtRelative(check.createdAt)}`}
+    title={check.inventoryNumber ? `Validar seus bens · ${check.inventoryNumber}` : 'Validar seus bens'}
+    subtitle={check.inventoryNumber ? `Inventário em andamento: confirme se ${check.total === 1 ? 'o bem está' : `os ${check.total} bens estão`} com você · ${fmtRelative(check.createdAt)}` : `${check.requestedByName || 'O gerente'} pediu para você confirmar se ${check.total === 1 ? 'o bem ainda está' : `os ${check.total} bens ainda estão`} com você · ${fmtRelative(check.createdAt)}`}
     action={<Button variant="urucum" onClick={onOpen}><ClipboardCheck /> Validar</Button>}
   />
 );
